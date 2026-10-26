@@ -1,0 +1,111 @@
+{
+  "version": "1.0",
+  "tutorials": [
+    {
+      "id": "burp-basics",
+      "title": "BurpSuite Basics - Intercept & Modify",
+      "category": "web",
+      "module": "burp",
+      "description": "Learn to intercept and modify HTTP requests with the simulated intercepting proxy.",
+      "steps": [
+        {
+          "description": "Start the Burp simulator and list available targets.",
+          "command": "burp",
+          "notes": "Inside the shell, type 'targets' to see endpoints."
+        },
+        {
+          "description": "Intercept a login request.",
+          "command": "intercept POST /login username=admin&password=wrong",
+          "notes": "This captures the request before it reaches the target."
+        },
+        {
+          "description": "Modify the username to 'admin'.",
+          "command": "modify body username=admin",
+          "notes": "Change the request body on the fly."
+        },
+        {
+          "description": "Forward the request and view the response.",
+          "command": "forward",
+          "notes": "Send the modified request to the simulated target."
+        }
+      ]
+    },
+    {
+      "id": "burp-sql-injection",
+      "title": "Simulated SQL Injection via Proxy",
+      "category": "web",
+      "module": "burp",
+      "description": "Practice injecting SQL payloads through the intercepting proxy.",
+      "steps": [
+        {
+          "description": "Intercept a search request.",
+          "command": "intercept GET /search?q=test",
+          "notes": "Capture a GET request with a query parameter."
+        },
+        {
+          "description": "Inject a SQL payload.",
+          "command": "modify body q=1' OR '1'='1",
+          "notes": "Replace the search query with a SQL injection payload."
+        },
+        {
+          "description": "Forward and observe the response.",
+          "command": "forward",
+          "notes": "See how the simulated target responds."
+        }
+      ]
+    },
+    {
+      "id": "wireshark-basics",
+      "title": "Wireshark Basics - Packet Inspection",
+      "category": "network",
+      "module": "wireshark",
+      "description": "Learn to inspect, filter, and analyze simulated network packets.",
+      "steps": [
+        {
+          "description": "Start the Wireshark simulator.",
+          "command": "wireshark",
+          "notes": "Generates 25 simulated packets and opens the capture shell."
+        },
+        {
+          "description": "List all packets.",
+          "command": "list",
+          "notes": "View the full packet table."
+        },
+        {
+          "description": "Filter to HTTP packets only.",
+          "command": "list proto==HTTP",
+          "notes": "Apply a display filter."
+        },
+        {
+          "description": "Export to pcap for real Wireshark.",
+          "command": "export capture.pcap",
+          "notes": "Save a real pcap file you can open in Wireshark."
+        }
+      ]
+    },
+    {
+      "id": "wireshark-dns-analysis",
+      "title": "DNS Traffic Analysis",
+      "category": "network",
+      "module": "wireshark",
+      "description": "Analyze simulated DNS queries and responses.",
+      "steps": [
+        {
+          "description": "Generate a capture with DNS packets.",
+          "command": "wireshark --packets 40",
+          "notes": "More packets increases DNS sample size."
+        },
+        {
+          "description": "Filter to DNS protocol.",
+          "command": "list proto==DNS",
+          "notes": "Show only DNS packets."
+        },
+        {
+          "description": "Count packets by protocol.",
+          "command": "count",
+          "notes": "See protocol distribution."
+        }
+      ]
+    }
+  ]
+}
