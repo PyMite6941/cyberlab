@@ -1,32 +1,39 @@
-# cyberlab — todo / stopping point
+# cyberterminal — todo / stopping point
 
 ## Status: COMPLETE (all verified)
 
 Repo: `C:/Users/gresh/OneDrive/ドキュメント/portfolio/cyberlab`
-Git: initialized, 2 commits on `master`, working tree clean.
+Git: initialized, 5 commits on `master`, working tree clean.
 
-### Verified commands
-- `cyberlab --help` — lists all subcommands: labs, run, burp, wireshark, shell, tutorial
-- `cyberlab labs` — lists 2 labs (burp-01, wireshark-01)
-- `cyberlab tutorial <id>` — shows tutorial steps (burp-basics, wireshark-basics tested)
-- `cyberlab burp` / `--help` — simulated intercepting proxy
-- `cyberlab wireshark` / `--help` — simulated packet capture + pcap export
-- `cyberlab shell` — custom terminator-like interactive environment:
-  - `help`, `help web` (opens HTML tutorial search page in browser ✓)
-  - `tutorials`, `tutorial <id>`, `run <id>`, `labs`, `burp`, `wireshark`, `cli <args>`, `clear`, `exit`
+### Verified
+- `cyberterminal` console script installed (`.venv/Scripts/cyberterminal.exe`)
+- `.\run.bat` / `./run.sh` launch the terminal directly
+- Terminal commands: burp, clear, exit, help, labs, quit, run, tutorial, tutorials, wireshark
+- `help web` opens HTML tutorial search page in browser
+- 4 tutorials: burp-basics, burp-sql-injection, wireshark-basics, wireshark-dns-analysis
+- 2 labs: burp-01 (burp), wireshark-01 (wireshark)
+- Burp login flow (200/401/403) verified
+- Wireshark packet gen + valid pcap export (`d4c3b2a1`) verified
+- Interactive install: prompts for docs, tools (burp/wireshark/both), tutorials
+- Offline path: `--cache-wheels` → `--offline` tested
+- `--non-interactive` mode works
 
 ### Files
-- `src/cyberlab/cli.py` — CLI entry point (shell + tutorial wired in)
-- `src/cyberlab/shell.py` — CyberlabShell (cmd.Cmd), custom environment
-- `src/cyberlab/tutorials/data.json` — 4 tutorials (burp-basics, burp-sql-injection, wireshark-basics, wireshark-dns-analysis)
-- `src/cyberlab/tutorials/index.html` — self-contained offline tutorial search page (TUTORIALS_DATA embedded), category filters
-- `src/cyberlab/tutorials/manager.py` — TutorialManager (load/search/get/categories)
+- `pyproject.toml` — `cyberterminal = "cyberlab.terminal:main"` entry point
+- `src/cyberlab/terminal.py` — CyberTerminal (cmd.Cmd), the custom emulated terminal
+- `src/cyberlab/cli.py` — legacy CLI (no longer entry point)
+- `src/cyberlab/shell.py` — legacy shell module
+- `src/cyberlab/tutorials/data.json` — 4 tutorials
+- `src/cyberlab/tutorials/index.html` — self-contained HTML search page + logo/favicon
+- `src/cyberlab/tutorials/manager.py` — TutorialManager
+- `src/cyberlab/tutorials/assets/logo.svg`, `favicon.svg` — website logo/icon
 - `src/cyberlab/modules/burp.py`, `src/cyberlab/modules/wireshark.py` — simulators
-- `install.py` / `install.bat` / `install.sh` — venv + offline wheel cache
-- `run.bat` / `run.sh` — launch wrappers
+- `install.py` — interactive install (docs, tools, tutorials prompts)
+- `install.bat` / `install.sh` — install wrappers
+- `run.bat` / `run.sh` — terminal launch wrappers
 - `.gitignore` — ignores .venv, wheels, caches, build artifacts, .env
+- `README.md` — cyberterminal docs
 - `todo.md` — this file
 
 ### Remaining (optional)
-- Offline path TESTED: `install.py --cache-wheels` (online) → `install.py --offline` (fully offline) ✓
 - Push to GitHub requires authentication setup (PAT or SSH)
