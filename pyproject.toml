@@ -1,14 +1,14 @@
 [project]
-name = "cyberlab"
+name = "cyberterminal"
 version = "0.1.0"
-description = "Offline-first cybersecurity practice CLI with simulated BurpSuite and Wireshark labs"
+description = "Custom emulated terminal for offline cybersecurity practice (BurpSuite + Wireshark simulators)"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1",
 ]
 
 [project.scripts]
-cyberlab = "cyberlab.cli:main"
+cyberterminal = "cyberlab.terminal:main"
 
 [build-system]
 requires = ["hatchling"]
