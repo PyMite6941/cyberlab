@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-label="cyberlab favicon">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#66fcf1"/>
+      <stop offset="100%" stop-color="#45a29e"/>
+    </linearGradient>
+  </defs>
+  <!-- Filled shield for small sizes -->
+  <path d="M32 2 C20 2 10 8 10 20 L10 46 L32 62 L54 46 L54 20 C54 8 44 2 32 2 Z"
+        fill="#0b0c10"/>
+  <path d="M32 4 C22 4 12 10 12 22 L12 44 L32 58 L52 44 L52 22 C52 10 42 4 32 4 Z"
+        fill="#12161c"/>
+  <path d="M22 20 L42 20" stroke="#1f2833" stroke-width="2"/>
+  <path d="M22 26 L42 26" stroke="#1f2833" stroke-width="2"/>
+  <path d="M24 20 L24 26" stroke="#1f2833" stroke-width="2"/>
+  <path d="M40 20 L40 26" stroke="#1f2833" stroke-width="2"/>
+  <circle cx="27" cy="23" r="1" fill="#66fcf1"/>
+  <circle cx="37" cy="23" r="1" fill="#66fcf1"/>
+  <path d="M32 38 L35 38 L35 44 L32 44 Z" fill="none" stroke="#66fcf1" stroke-width="2"/>
+  <path d="M35 44 L38 44" stroke="#66fcf1" stroke-width="2"/>
+</svg>

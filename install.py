@@ -75,18 +75,14 @@ def create_venv(uv: str) -> None:
 
 
 def pip_install_offline(uv: str, venv_py: str, wheels_dir: Path) -> int:
-    """Install from the local wheels directory only (--no-index)."""
+    """Install from the local wheels directory only (--no-index).
+
+    uv resolves and installs directly; it does not need pip inside the venv.
+    """
     if not wheels_dir.exists() or not any(wheels_dir.iterdir()):
         log("No wheels found in wheels/; cannot install offline.")
         return 1
     log("Installing from offline wheel cache (--no-index --find-links wheels/)")
-    rc = run([
-        uv, "pip", "install", "--python", venv_py,
-        "--no-index", "--find-links", str(wheels_dir),
-        "--upgrade", "pip",
-    ])
-    if rc != 0:
-        return rc
     return run([
         uv, "pip", "install", "--python", venv_py,
         "--no-index", "--find-links", str(wheels_dir),

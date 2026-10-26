@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>cyberlab - Tutorial Search</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="apple-touch-icon" href="assets/logo.svg">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -19,7 +21,15 @@
     padding-bottom: 16px;
     margin-bottom: 24px;
   }
-  h1 { margin: 0; color: #66fcf1; font-size: 28px; }
+  .logo {
+    width: 40px;
+    height: 40px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+  .logo svg { width: 100%; height: 100%; }
+  h1 { margin: 0; color: #66fcf1; font-size: 28px; display: inline-block; vertical-align: middle; }
   h1 span { color: #45a29e; }
   p.sub { margin: 6px 0 0; color: #888; font-size: 14px; }
 
@@ -98,7 +108,7 @@
 <body>
 <div class="container">
   <header>
-    <h1>cyberlab <span>Tutorials</span></h1>
+    <h1><span class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#66fcf1"/><stop offset="100%" stop-color="#45a29e"/></linearGradient></defs><path d="M32 2 C20 2 10 8 10 20 L10 46 L32 62 L54 46 L54 20 C54 8 44 2 32 2 Z" fill="#12161c" stroke="#66fcf1" stroke-width="2"/><path d="M20 22 L44 22" stroke="#1f2833" stroke-width="2"/><path d="M20 30 L44 30" stroke="#1f2833" stroke-width="2"/><path d="M22 22 L22 30" stroke="#1f2833" stroke-width="2"/><path d="M42 22 L42 30" stroke="#1f2833" stroke-width="2"/><circle cx="26" cy="26" r="1.5" fill="#66fcf1"/><circle cx="38" cy="26" r="1.5" fill="#66fcf1"/><path d="M32 42 L36 42 L36 48 L32 48 Z" fill="none" stroke="#66fcf1" stroke-width="2.5"/><path d="M36 48 L40 48" stroke="#66fcf1" stroke-width="2.5"/></svg></span>cyberlab <span>Tutorials</span></h1>
     <p class="sub">Offline-first cybersecurity practice &bull; Search, filter, and open tutorials</p>
   </header>
 

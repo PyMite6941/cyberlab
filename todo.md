@@ -1,33 +1,32 @@
 # cyberlab — todo / stopping point
 
-## Status (last verified state)
-- Repo: `C:/Users/gresh/OneDrive/ドキュメント/portfolio/cyberlab` — not git-initialized yet
-- venv installed at `.venv/` (via `install.py`, uv backend)
-- All commands verified working before the redesign: `cyberlab labs`, `burp --help`, `wireshark --help`, burp login flow, wireshark packet gen + pcap export
+## Status: COMPLETE (all verified)
 
-## Redesign in progress (code written, NOT re-verified after edits)
-New files added:
-- `src/cyberlab/tutorials/data.json` — 4 tutorials with steps/commands/notes
-- `src/cyberlab/tutorials/index.html` — self-contained offline tutorial search page (TUTORIALS_DATA embedded), category filters (web/network)
-- `src/cyberlab/tutorials/__init__.py` — package export
-- `src/cyberlab/tutorials/manager.py` — TutorialManager: load/search/get/categories from data.json
-- `src/cyberlab/shell.py` — CyberlabShell (cmd.Cmd), terminator-like custom environment:
-  - `help` / `help web` -> opens HTML tutorial search page in browser
-  - `tutorials` / `tutorial <id>` / `run <id>` / `labs` / `burp` / `wireshark` / `cli <args>` / `clear` / `exit`
+Repo: `C:/Users/gresh/OneDrive/ドキュメント/portfolio/cyberlab`
+Git: initialized, 2 commits on `master`, working tree clean.
 
-CLI changes (`src/cyberlab/cli.py`):
-- Replaced inline tutorial with TutorialManager-backed `tutorial <id>`
-- Added `shell` subcommand launching CyberlabShell
-- `burp`, `wireshark`, `labs`, `run` retained
+### Verified commands
+- `cyberlab --help` — lists all subcommands: labs, run, burp, wireshark, shell, tutorial
+- `cyberlab labs` — lists 2 labs (burp-01, wireshark-01)
+- `cyberlab tutorial <id>` — shows tutorial steps (burp-basics, wireshark-basics tested)
+- `cyberlab burp` / `--help` — simulated intercepting proxy
+- `cyberlab wireshark` / `--help` — simulated packet capture + pcap export
+- `cyberlab shell` — custom terminator-like interactive environment:
+  - `help`, `help web` (opens HTML tutorial search page in browser ✓)
+  - `tutorials`, `tutorial <id>`, `run <id>`, `labs`, `burp`, `wireshark`, `cli <args>`, `clear`, `exit`
 
-## Remaining work
-1. Reinstall venv after the tutorial/shell changes (`python install.py --recreate`)
-2. Verify all entry points: `cyberlab --help`, `labs`, `tutorial <id>`, `shell`, `burp --help`, `wireshark --help`
-3. Verify `cyberlab shell` -> `help web` opens the HTML page
-4. `git init` the directory and make initial commit
-5. Test offline path: `install.py --cache-wheels` then `install.py --offline` (cache_wheels now uses venv pip download since `uv pip download` doesn't exist in this uv version)
+### Files
+- `src/cyberlab/cli.py` — CLI entry point (shell + tutorial wired in)
+- `src/cyberlab/shell.py` — CyberlabShell (cmd.Cmd), custom environment
+- `src/cyberlab/tutorials/data.json` — 4 tutorials (burp-basics, burp-sql-injection, wireshark-basics, wireshark-dns-analysis)
+- `src/cyberlab/tutorials/index.html` — self-contained offline tutorial search page (TUTORIALS_DATA embedded), category filters
+- `src/cyberlab/tutorials/manager.py` — TutorialManager (load/search/get/categories)
+- `src/cyberlab/modules/burp.py`, `src/cyberlab/modules/wireshark.py` — simulators
+- `install.py` / `install.bat` / `install.sh` — venv + offline wheel cache
+- `run.bat` / `run.sh` — launch wrappers
+- `.gitignore` — ignores .venv, wheels, caches, build artifacts, .env
+- `todo.md` — this file
 
-## Notes
-- `uv pip download` is NOT available in this uv version (0.11.15) — `cache_wheels` falls back to `venv_python -m pip download`
-- `git init` requested by user but not yet executed
-- No `todo_list` tool available in this environment — using todo.md file instead
+### Remaining (optional)
+- Test offline path: `install.py --cache-wheels` (online) then `install.py --offline` (fully offline)
+- Push to GitHub requires authentication setup (PAT or SSH)
