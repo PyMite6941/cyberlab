@@ -41,9 +41,29 @@ cyberterminal> exit
   responses against a mock vulnerable target, entirely offline.
 - **wireshark** — simulated packet capture. Generate, inspect, filter, and
   export synthetic Ethernet/IP/TCP/UDP/HTTP/DNS packets to pcap.
-- **tutorials** — 4 baked-in tutorials (burp-basics, burp-sql-injection,
-  wireshark-basics, wireshark-dns-analysis) with step-by-step commands.
+- **tutorials** — 7 baked-in tutorials across web and network domains with
+  step-by-step commands.
 - **help web** — opens a self-contained HTML tutorial search page (offline).
+
+## Available tutorials
+
+| ID | Category | Title |
+|----|----------|-------|
+| burp-basics | web | BurpSuite Basics - Intercept & Modify |
+| burp-sql-injection | web | Simulated SQL Injection via Proxy |
+| burp-xss | web | Cross-Site Scripting (XSS) via Proxy |
+| burp-admin-escalation | web | Privilege Escalation via Session Cookie |
+| wireshark-basics | network | Wireshark Basics - Packet Inspection |
+| wireshark-dns-analysis | network | DNS Traffic Analysis |
+| wireshark-tcp-handshake | network | TCP Three-Way Handshake Analysis |
+
+## Available labs
+
+| ID | Module | Title |
+|----|--------|-------|
+| burp-01 | burp | Intercepting proxy basics |
+| wireshark-01 | wireshark | Packet capture analysis |
+
 
 ## Offline use
 

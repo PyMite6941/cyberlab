@@ -1,20 +1,22 @@
 """Simulated intercepting proxy (BurpSuite-style), fully offline.
 
-Provides a mock vulnerable web target and a local "proxy" that lets you inspect
-and modify HTTP requests and responses before they are forwarded. All traffic
-lives in memory - no real network is used.
+Provides a mock vulnerable web application and a local intercepting proxy that
+lets you inspect and modify HTTP requests and responses before they are
+forwarded. All traffic lives in memory - no real network is used.
 
-Example session:
+To launch from cyberterminal:
 
-    $ cyberlab burp
+    cyberterminal> burp
+
+Inside the Burp shell:
+
     burp> targets
     burp> intercept GET /login
     burp> modify header Content-Type application/x-www-form-urlencoded
     burp> modify body username=admin&password=password
     burp> forward
-    burp> response
-    burp> modify body <script>alert(1)</script>
-    burp> forward
+    burp> show response
+    burp> quit
 """
 
 from __future__ import annotations
@@ -81,7 +83,7 @@ class MockTarget:
                 "headers": {"Content-Type": "text/html", **headers_out},
                 "body": body_text,
             }
-        elif method == "GET" and path == "/search":
+        elif method == "GET" and path.split("?")[0] == "/search":
             q = self._parse_qs(path).get("q", "")
             body_text = (
                 "<html><body><h2>Search results for: "
@@ -150,6 +152,17 @@ class MockTarget:
 
 
 def format_request(method: str, path: str, headers: Dict[str, str], body: str) -> str:
+    """Render an intercepted HTTP request as a raw text block.
+
+    Args:
+        method: HTTP method (GET, POST, etc.).
+        path: Request path including query string.
+        headers: Request headers as a dict.
+        body: Request body string.
+
+    Returns:
+        A formatted raw HTTP request string.
+    """
     lines = [f"{method} {path} HTTP/1.1"]
     for k, v in headers.items():
         lines.append(f"{k}: {v}")
@@ -160,6 +173,16 @@ def format_request(method: str, path: str, headers: Dict[str, str], body: str) -
 
 
 def format_response(status: str, headers: Dict[str, str], body: str) -> str:
+    """Render an HTTP response as a raw text block.
+
+    Args:
+        status: Status line (e.g. "200 OK").
+        headers: Response headers as a dict.
+        body: Response body string.
+
+    Returns:
+        A formatted raw HTTP response string.
+    """
     lines = [f"HTTP/1.1 {status}"]
     for k, v in headers.items():
         lines.append(f"{k}: {v}")

@@ -5,11 +5,19 @@ Wireshark-like table, supports display filters, follows "streams", and can
 export a real pcap file you can open in actual Wireshark.
 
 No real NIC or network is used - everything is synthesized in memory.
+
+To launch from cyberterminal:
+
+    cyberterminal> wireshark
+    cyberterminal> wireshark --packets 50
+    cyberterminal> wireshark --export capture.pcap
 """
 
 from __future__ import annotations
 
 import argparse
+import cmd
+import shlex
 import struct
 import sys
 from dataclasses import dataclass, field
@@ -184,7 +192,16 @@ PCAP_MAGIC = 0xA1B2C3D4  # little-endian, microsecond
 
 
 def write_pcap(path: str, packets: List[Packet]) -> None:
-    """Write packets to a pcap file readable by Wireshark/tcpdump."""
+    """Write packets to a pcap file readable by Wireshark/tcpdump.
+
+    Args:
+        path: Output file path (will be created/overwritten).
+        packets: List of :class:`Packet` objects to write.
+
+    The output uses the standard pcap magic number (0xA1B2C3D4, little-endian,
+    microsecond timestamps) and link-layer type 1 (Ethernet), so it can be
+    opened in real Wireshark or analyzed with tcpdump/tshark.
+    """
     with open(path, "wb") as f:
         # Global header
         f.write(struct.pack("<IHHiIII", PCAP_MAGIC, 2, 4, 0, 0, 65535, 1))
@@ -217,7 +234,20 @@ def print_table(packets: List[Packet]) -> None:
 
 
 def filter_packets(packets: List[Packet], expr: str) -> List[Packet]:
-    """Very small display filter: proto==HTTP, ip==1.2.3.4, port==80."""
+    """Filter packets by a small display-filter expression.
+
+    Supported terms (space-separated, joined with ``and``):
+        proto==HTTP   — match protocol
+        ip==1.2.3.4   — match source or destination IP
+        port==80      — match source or destination port
+
+    Args:
+        packets: List of :class:`Packet` objects.
+        expr: Filter expression string.
+
+    Returns:
+        List of packets matching all terms.
+    """
     expr = expr.strip()
     results = []
     for p in packets:
@@ -254,7 +284,6 @@ def follow_stream(packets: List[Packet], stream_id: int) -> None:
 
 import cmd  # noqa: E402
 import shlex  # noqa: E402
-
 
 class WiresharkShell(cmd.Cmd):
     intro = "=== cyberlab Wireshark simulator (offline) ===\nType 'help' or '?' to list commands. Type 'quit' to exit.\n"
@@ -326,7 +355,10 @@ def run_wireshark(args: argparse.Namespace) -> int:
     if args.export:
         write_pcap(args.export, packets)
         print(f"Exported to {args.export}")
-    # Drop into interactive shell unless --export only? Always interactive for learning.
+        # When exporting only, show the table and exit without entering the shell.
+        if not sys.stdin.isatty():
+            return 0
+    # Drop into interactive shell for hands-on learning.
     shell = WiresharkShell(packets)
     shell.cmdloop()
     return 0

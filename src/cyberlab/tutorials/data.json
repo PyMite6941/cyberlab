@@ -106,6 +106,88 @@
           "notes": "See protocol distribution."
         }
       ]
+    },
+    {
+      "id": "burp-xss",
+      "title": "Cross-Site Scripting (XSS) via Proxy",
+      "category": "web",
+      "module": "burp",
+      "description": "Practice injecting reflected XSS payloads through the intercepting proxy.",
+      "steps": [
+        {
+          "description": "Intercept a search request.",
+          "command": "intercept GET /search?q=test",
+          "notes": "Capture a GET request with a query parameter."
+        },
+        {
+          "description": "Inject an XSS payload.",
+          "command": "modify body q=<script>alert(1)</script>",
+          "notes": "Replace the search query with an XSS payload."
+        },
+        {
+          "description": "Forward and observe the response.",
+          "command": "forward",
+          "notes": "See how the simulated target reflects the payload."
+        }
+      ]
+    },
+    {
+      "id": "burp-admin-escalation",
+      "title": "Privilege Escalation via Session Cookie",
+      "category": "web",
+      "module": "burp",
+      "description": "Practice accessing admin endpoints by manipulating session cookies.",
+      "steps": [
+        {
+          "description": "Log in as a regular user.",
+          "command": "intercept POST /login username=user1&password=password123",
+          "notes": "Capture a valid user1 login request."
+        },
+        {
+          "description": "Forward and capture the session cookie.",
+          "command": "forward",
+          "notes": "Note the Set-Cookie header in the response."
+        },
+        {
+          "description": "Try accessing /admin with user1 session.",
+          "command": "intercept GET /admin",
+          "notes": "This should return 403 Forbidden."
+        },
+        {
+          "description": "Modify cookie to admin session.",
+          "command": "modify header Cookie session=sess-admin",
+          "notes": "Swap in the admin session token."
+        },
+        {
+          "description": "Forward and observe admin access.",
+          "command": "forward",
+          "notes": "With admin session, /admin returns 200 and reveals the flag."
+        }
+      ]
+    },
+    {
+      "id": "wireshark-tcp-handshake",
+      "title": "TCP Three-Way Handshake Analysis",
+      "category": "network",
+      "module": "wireshark",
+      "description": "Analyze simulated TCP connection establishment (SYN, SYN-ACK, ACK).",
+      "steps": [
+        {
+          "description": "Generate a capture with TCP packets.",
+          "command": "wireshark --packets 30",
+          "notes": "Includes TCP SYN, SYN-ACK, and ACK packets."
+        },
+        {
+          "description": "Filter to TCP protocol.",
+          "command": "list proto==TCP",
+          "notes": "Show only TCP packets."
+        },
+        {
+          "description": "Follow a TCP stream.",
+          "command": "follow 1",
+          "notes": "View the simulated stream conversation."
+        }
+      ]
     }
   ]
 }
