@@ -224,7 +224,7 @@ class CyberlabShell(cmd.Cmd):
     # ---------- helpers ----------
 
     def _open_tutorial_webpage(self) -> None:
-        html_path = Path(__file__).resolve().parent.parent / "tutorials" / "index.html"
+        html_path = Path(__file__).resolve().parent / "tutorials" / "index.html"
         if not html_path.exists():
             print(f"Tutorial webpage not found: {html_path}")
             return
