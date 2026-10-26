@@ -28,5 +28,5 @@ Git: initialized, 2 commits on `master`, working tree clean.
 - `todo.md` — this file
 
 ### Remaining (optional)
-- Test offline path: `install.py --cache-wheels` (online) then `install.py --offline` (fully offline)
+- Offline path TESTED: `install.py --cache-wheels` (online) → `install.py --offline` (fully offline) ✓
 - Push to GitHub requires authentication setup (PAT or SSH)
