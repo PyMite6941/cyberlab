@@ -89,17 +89,38 @@ class MockTarget:
                 "<html><body><h2>Search results for: "
                 + html.escape(q) + "</h2><p>(simulated)</p></body></html>"
             )
-        elif method == "GET" and path == "/profile":
+        elif method == "GET" and path.split("?")[0] == "/profile":
             token = self._session_token(headers)
             user = self.sessions.get(token)
             if not user:
                 status = "302 Found"
                 body_text = ""
                 return {"status": status, "headers": {"Location": "/login"}, "body": body_text}
-            body_text = (
-                f"<html><body><h2>Profile: {user}</h2>"
-                f"<p>Role: {self.users[user]['role']}</p></body></html>"
-            )
+            qs = self._parse_qs(path)
+            profile_id = qs.get("id", "1")
+            if profile_id == "1" and user == "admin":
+                body_text = (
+                    "<html><body><h2>Profile: admin</h2>"
+                    "<p>Role: admin</p>"
+                    "<p>Flag: FLAG{idor_access_granted}</p>"
+                    "</body></html>"
+                )
+            elif profile_id == "1":
+                body_text = (
+                    f"<html><body><h2>Profile: {user}</h2>"
+                    f"<p>Role: {self.users[user]['role']}</p>"
+                    "</body></html>"
+                )
+            else:
+                # IDOR: accessing another user's profile
+                body_text = (
+                    "<html><body><h2>Profile: user2</h2>"
+                    "<p>Role: user</p>"
+                    "<p>Email: user2@example.com</p>"
+                    "<p>Flag: FLAG{idor_access_granted}</p>"
+                    "</body></html>"
+                )
+            return {"status": "200 OK", "headers": {"Content-Type": "text/html"}, "body": body_text}
         elif method == "GET" and path == "/admin":
             token = self._session_token(headers)
             user = self.sessions.get(token)
@@ -110,8 +131,25 @@ class MockTarget:
                 body_text = (
                     "<html><body><h2>Admin Panel</h2>"
                     "<p>Users: admin, user1</p>"
-                    "<p>Flag: CTF{offline_burp_sim}</p></body></html>"
+                    "<p>Flag: FLAG{admin_session_hijack}</p>"
+                    "</body></html>"
                 )
+        elif method == "POST" and path.split("?")[0] == "/upload":
+            qs = self._parse_qs(path)
+            filename = qs.get("file", "unknown")
+            if filename.lower().endswith(".php"):
+                body_text = (
+                    "<html><body><h2>Upload Rejected</h2>"
+                    "<p>File type not allowed.</p></body></html>"
+                )
+                status = "403 Forbidden"
+            else:
+                body_text = (
+                    "<html><body><h2>Upload Successful</h2>"
+                    "<p>File uploaded.</p></body></html>"
+                )
+                status = "200 OK"
+            return {"status": status, "headers": {"Content-Type": "text/html"}, "body": body_text}
         else:
             status = "404 Not Found"
             body_text = "<html><body>Not found.</body></html>"
@@ -349,14 +387,16 @@ def run_burp(args: argparse.Namespace) -> int:
 
 
 # Self-register with the lab registry so `cyberlab labs` / `cyberlab run` work.
-from cyberlab.core import Scenario, registry as _registry  # noqa: E402
+from src.core import Scenario, lab_registry as _lab_registry  # noqa: E402
+from src.core.track import registry as _track_registry  # noqa: E402
+from src.core.track import Tutorial as _Tutorial  # noqa: F401
 
 
 def _burp_lab() -> int:
     return run_burp(argparse.Namespace(target="http://lab.local"))
 
 
-_registry.register(
+_lab_registry.register(
     Scenario(
         id="burp-01",
         title="Intercepting proxy basics",
@@ -365,5 +405,77 @@ _registry.register(
         module="burp",
         run=_burp_lab,
         tags=["web", "proxy", "burp", "offline"],
+    )
+)
+
+# Register burp tutorials with the track registry
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="web-sqli-01",
+        title="SQL Injection via Intercepting Proxy",
+        category="web",
+        module="burp",
+        description="Inject a SQL payload into a search parameter through the proxy.",
+        vulnerability="sql_injection",
+        difficulty="easy",
+        track="web-security",
+        flag="FLAG{sqli_basic_success}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="web-xss-01",
+        title="Reflected Cross-Site Scripting",
+        category="web",
+        module="burp",
+        description="Inject a reflected XSS payload into a search parameter.",
+        vulnerability="xss",
+        difficulty="easy",
+        track="web-security",
+        flag="FLAG{xss_reflected_success}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="web-idor-01",
+        title="Insecure Direct Object Reference",
+        category="web",
+        module="burp",
+        description="Access another user's profile by manipulating the profile ID parameter.",
+        vulnerability="idor",
+        difficulty="medium",
+        track="web-security",
+        flag="FLAG{idor_access_granted}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="web-auth-bypass-01",
+        title="Authentication Bypass via Session Cookie",
+        category="web",
+        module="burp",
+        description="Access an admin endpoint by manipulating the session cookie.",
+        vulnerability="auth_bypass",
+        difficulty="medium",
+        track="web-security",
+        flag="FLAG{admin_session_hijack}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="web-file-upload-01",
+        title="File Upload Bypass",
+        category="web",
+        module="burp",
+        description="Bypass file extension filtering by using an alternate extension.",
+        vulnerability="file_upload_bypass",
+        difficulty="hard",
+        track="web-security",
+        flag="FLAG{upload_bypass_success}",
+        ai_enabled=True,
     )
 )

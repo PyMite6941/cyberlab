@@ -90,31 +90,43 @@ def generate_packets(count: int = 25, seed: int = 42) -> List[Packet]:
         dst_ip = _rand_choice(IPS, rng)
 
         roll = rng.random()
-        if roll < 0.35:
+        if roll < 0.25:
             proto = "HTTP"
             src_port = rng.choice([80, 443, 8080])
             dst_port = rng.randint(1024, 65535)
             length = rng.randint(60, 1500)
             path = _rand_choice(http_paths, rng)
             info = f"GET {path} HTTP/1.1" if src_port in (80, 8080) else f"HTTP {rng.choice([200, 301, 404])} OK"
-        elif roll < 0.6:
+        elif roll < 0.40:
             proto = "DNS"
             src_port = rng.randint(1024, 65535)
             dst_port = 53
             length = rng.randint(40, 120)
             info = f"Standard query {rng.choice(dns_names)} A"
-        elif roll < 0.8:
+        elif roll < 0.55:
             proto = "TCP"
             src_port = rng.randint(1024, 65535)
             dst_port = rng.choice([22, 80, 443, 3389])
             length = rng.randint(40, 60)
             info = f"{rng.choice(['SYN', 'SYN,ACK', 'ACK', 'FIN,ACK'])} {src_port}>{dst_port}"
-        else:
+        elif roll < 0.65:
             proto = "UDP"
             src_port = rng.randint(1024, 65535)
             dst_port = rng.choice([53, 67, 68, 123, 161])
             length = rng.randint(30, 80)
             info = f"{src_port}>{dst_port} len={rng.randint(20, 60)}"
+        elif roll < 0.75:
+            proto = "ARP"
+            src_port = None
+            dst_port = None
+            length = rng.randint(28, 50)
+            info = f"Who has {rng.choice(IPS)}? Tell {rng.choice(IPS)}"
+        else:
+            proto = "ICMP"
+            src_port = None
+            dst_port = None
+            length = rng.randint(60, 200)
+            info = f"Echo request {rng.choice(IPS)} -> {rng.choice(IPS)}"
 
         raw = build_raw_frame(src_mac, dst_mac, src_ip, dst_ip, proto,
                               src_port, dst_port, info.encode())
@@ -365,14 +377,16 @@ def run_wireshark(args: argparse.Namespace) -> int:
 
 
 # Self-register with the lab registry so `cyberlab labs` / `cyberlab run` work.
-from cyberlab.core import Scenario, registry as _registry  # noqa: E402
+from src.core import Scenario, lab_registry as _lab_registry  # noqa: E402
+from src.core.track import registry as _track_registry  # noqa: E402
+from src.core.track import Tutorial as _Tutorial  # noqa: F401
 
 
 def _wireshark_lab() -> int:
     return run_wireshark(argparse.Namespace(packets=25, export=None))
 
 
-_registry.register(
+_lab_registry.register(
     Scenario(
         id="wireshark-01",
         title="Packet capture analysis",
@@ -381,5 +395,77 @@ _registry.register(
         module="wireshark",
         run=_wireshark_lab,
         tags=["network", "packets", "wireshark", "offline"],
+    )
+)
+
+# Register wireshark tutorials with the track registry
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="net-dns-01",
+        title="DNS Traffic Analysis",
+        category="network",
+        module="wireshark",
+        description="Analyze simulated DNS queries for signs of DNS tunneling or exfiltration.",
+        vulnerability="dns_tunneling",
+        difficulty="easy",
+        track="network-security",
+        flag="FLAG{dns_analysis_complete}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="net-tcp-01",
+        title="TCP Three-Way Handshake Analysis",
+        category="network",
+        module="wireshark",
+        description="Analyze simulated TCP connection establishment (SYN, SYN-ACK, ACK).",
+        vulnerability="tcp_handshake",
+        difficulty="easy",
+        track="network-security",
+        flag="FLAG{tcp_handshake_analysis}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="net-port-scan-01",
+        title="Port Scan Detection",
+        category="network",
+        module="wireshark",
+        description="Identify a port scan by analyzing connection attempts to multiple ports.",
+        vulnerability="port_scan",
+        difficulty="medium",
+        track="network-security",
+        flag="FLAG{port_scan_detected}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="net-arp-01",
+        title="ARP Spoofing Detection",
+        category="network",
+        module="wireshark",
+        description="Detect ARP spoofing by identifying duplicate MAC-to-IP mappings.",
+        vulnerability="arp_spoofing",
+        difficulty="hard",
+        track="network-security",
+        flag="FLAG{arp_spoof_detected}",
+        ai_enabled=True,
+    )
+)
+_track_registry.register_tutorial(
+    _Tutorial(
+        id="net-icmp-01",
+        title="ICMP Tunneling Detection",
+        category="network",
+        module="wireshark",
+        description="Spot ICMP tunneling by analyzing unusual ICMP payload sizes.",
+        vulnerability="icmp_tunneling",
+        difficulty="hard",
+        track="network-security",
+        flag="FLAG{icmp_tunnel_detected}",
+        ai_enabled=True,
     )
 )

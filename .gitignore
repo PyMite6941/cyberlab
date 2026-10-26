@@ -46,3 +46,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local working notes (do not publish)
+todo.md

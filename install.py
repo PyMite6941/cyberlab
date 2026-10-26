@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 WHEELS_DIR = ROOT / "wheels"
 REQUIREMENTS = ROOT / "requirements.txt"
-TUTORIALS_DATA = ROOT / "src" / "cyberlab" / "tutorials" / "data.json"
+TUTORIALS_DATA = ROOT / "src" / "tutorials" / "data.json"
 
 
 def log(msg: str) -> None:
@@ -202,7 +202,7 @@ def verify(uv: str, venv_py: str) -> int:
     run([uv, "pip", "install", "--python", venv_py, "-e", str(ROOT)])
     return run([
         venv_py, "-c",
-        "from cyberlab.terminal import CyberTerminal, main; print('cyberterminal OK')",
+        "from src.terminal import CyberTerminal, main; print('cyberterminal OK')",
     ])
 
 

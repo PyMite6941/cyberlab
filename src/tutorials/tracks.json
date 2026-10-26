@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "tracks": [
+    {
+      "id": "web-security",
+      "title": "Web Application Security",
+      "description": "Learn to find and exploit common web vulnerabilities using a simulated intercepting proxy.",
+      "tutorials": [
+        "web-sqli-01",
+        "web-xss-01",
+        "web-idor-01",
+        "web-auth-bypass-01",
+        "web-file-upload-01"
+      ]
+    },
+    {
+      "id": "network-security",
+      "title": "Network Packet Analysis",
+      "description": "Learn to inspect, filter, and analyze synthetic network traffic for signs of attack.",
+      "tutorials": [
+        "net-dns-01",
+        "net-tcp-01",
+        "net-port-scan-01",
+        "net-arp-01",
+        "net-icmp-01"
+      ]
+    },
+    {
+      "id": "authentication-security",
+      "title": "Authentication & Identity",
+      "description": "Practice password attacks, session manipulation, and MFA bypass techniques.",
+      "tutorials": [
+        "auth-password-spray-01",
+        "auth-session-hijack-01",
+        "auth-mfa-bypass-01"
+      ]
+    },
+    {
+      "id": "siem-logs",
+      "title": "SIEM & Log Analysis",
+      "description": "Analyze simulated security event logs to detect intrusion and misuse.",
+      "tutorials": [
+        "siem-brute-force-01",
+        "siem-port-scan-01",
+        "siem-priv-escalation-01"
+      ]
+    },
+    {
+      "id": "osint",
+      "title": "Open Source Intelligence",
+      "description": "Learn to gather public information about domains, usernames, and IP addresses without touching the target.",
+      "tutorials": [
+        "osint-domain-01",
+        "osint-username-01"
+      ]
+    }
+  ]
+}
