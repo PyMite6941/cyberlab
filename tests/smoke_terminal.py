@@ -132,6 +132,7 @@ except tk.TclError as e:
     print(f"SKIP  main window checks (no display: {e})")
 else:
     win.root.withdraw()
+    PROMPT = terminal.CyberTerminalGUI.prompt
 
     def type_and_run(line):
         win.text.insert("end-1c", line)
@@ -145,10 +146,10 @@ else:
 
     buf = type_and_run("help")
     lines = buf.splitlines()
-    check("yberterminal" not in buf and lines.count("cyberterminal> help") == 1,
+    check("yberterminal" not in buf and lines.count(PROMPT + "help") == 1,
           "main window: 'help' is read as help and echoed once")
-    check("burp" in buf.split("cyberterminal> help", 1)[1], "main window: help output appears below the command")
-    check(lines[-1] == "cyberterminal> " and win.awaiting_input, "main window: a fresh prompt is the last line")
+    check("burp" in buf.split(PROMPT + "help", 1)[1], "main window: help output appears below the command")
+    check(lines[-1] == PROMPT and win.awaiting_input, "main window: a fresh prompt is the last line")
     buf = type_and_run("nosuchcmd")
     check("Unknown syntax: nosuchcmd" in buf, "main window: typos are reported in the window")
     win.root.destroy()

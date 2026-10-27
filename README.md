@@ -33,15 +33,15 @@ python3 tests/smoke_terminal.py
 shell:
 
 ```
-cyberterminal> help
-cyberterminal> tutorials
-cyberterminal> tutorial burp-basics
-cyberterminal> labs
-cyberterminal> run burp-01
-cyberterminal> burp
-cyberterminal> wireshark
-cyberterminal> help web          # opens tutorial search page in browser
-cyberterminal> exit
+student@cyberlab:~$ help
+student@cyberlab:~$ tutorials
+student@cyberlab:~$ tutorial burp-basics
+student@cyberlab:~$ labs
+student@cyberlab:~$ run burp-01
+student@cyberlab:~$ burp
+student@cyberlab:~$ wireshark
+student@cyberlab:~$ help web          # opens tutorial search page in browser
+student@cyberlab:~$ exit
 ```
 
 ## Included tools

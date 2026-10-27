@@ -64,7 +64,9 @@ ASCII_LOGO = r"""
 class CyberTerminalGUI(cmd.Cmd):
     """The cmd.Cmd backend logic for cyberterminal."""
 
-    prompt = "cyberterminal> "
+    # Looks like the Linux shell security tools are used from, with a fixed
+    # lab user so every learner (and every tutorial screenshot) sees the same.
+    prompt = "student@cyberlab:~$ "
 
     def __init__(self, output_callback=None) -> None:
         super().__init__()
