@@ -19,15 +19,17 @@ import random
 from typing import Optional
 
 
-# Simulated credential database
-CREDENTIAL_DB: dict[str, dict[str, str]] = {
-    "admin": {"password": "admin", "service": "ssh"},
-    "admin": {"password": "password", "service": "http"},
-    "user1": {"password": "password123", "service": "ssh"},
-    "user1": {"password": "welcome1", "service": "ftp"},
-    "root": {"password": "toor", "service": "ssh"},
-    "test": {"password": "test", "service": "http"},
-    "guest": {"password": "guest", "service": "ftp"},
+# Simulated credential database, keyed by (username, service). It used to be
+# keyed by username alone, so the repeated "admin" and "user1" keys silently
+# overwrote each other and admin over ssh could never be cracked.
+CREDENTIAL_DB: dict[tuple[str, str], str] = {
+    ("admin", "ssh"): "admin",
+    ("admin", "http"): "password",
+    ("user1", "ssh"): "password123",
+    ("user1", "ftp"): "welcome1",
+    ("root", "ssh"): "toor",
+    ("test", "http"): "test",
+    ("guest", "ftp"): "guest",
 }
 
 
@@ -59,9 +61,8 @@ def simulate_crack(target: str, service: str, username: str,
     found_password = ""
 
     # Determine if this credential exists in our simulated DB
-    cred = CREDENTIAL_DB.get(username)
-    actual_password = cred.get("password") if cred else None
-    service_match = cred and cred.get("service") == service
+    actual_password = CREDENTIAL_DB.get((username, service))
+    service_match = actual_password is not None
 
     for pwd in wordlist:
         attempts.append({

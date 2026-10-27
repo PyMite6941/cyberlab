@@ -63,17 +63,23 @@ def filter_failed(events: List[dict]) -> List[dict]:
 
 
 def analyze_spray(events: List[dict]) -> dict:
-    """Detect password spraying: many users, few attempts each, same source."""
-    from collections import Counter
+    """Detect password spraying: one source failing logins for many different users."""
+    from collections import Counter, defaultdict
     failed = filter_failed(events)
     users = Counter(e["user"] for e in failed)
     ips = Counter(e["src_ip"] for e in failed)
+    users_by_ip = defaultdict(set)
+    for e in failed:
+        users_by_ip[e["src_ip"]].add(e["user"])
+    source, targeted = max(users_by_ip.items(), key=lambda kv: len(kv[1]), default=(None, set()))
     return {
         "failed_count": len(failed),
         "unique_users": len(users),
         "unique_ips": len(ips),
         "top_ips": ips.most_common(3),
-        "is_spray": len(users) >= 5 and len(ips) == 1,
+        "source": source,
+        "users_from_source": len(targeted),
+        "is_spray": len(targeted) >= 5,
     }
 
 
@@ -83,7 +89,8 @@ class AuthShell(cmd.Cmd):
 
     def __init__(self) -> None:
         super().__init__()
-        self.events = generate_events()
+        # The planted attack plus background noise, in time order.
+        self.events = sorted(AUTH_EVENTS + generate_events(), key=lambda e: e["timestamp"])
 
     def do_logs(self, arg: str) -> None:
         """List authentication events.
@@ -129,7 +136,8 @@ class AuthShell(cmd.Cmd):
             print(f"  Top source IPs: {result['top_ips']}")
             print(f"  Is password spray: {result['is_spray']}")
             if result["is_spray"]:
-                print("  >>> Password spraying detected: single IP attempting many usernames.")
+                print(f"  >>> Password spraying detected: {result['source']} failed logins for "
+                      f"{result['users_from_source']} different usernames.")
         else:
             print("usage: analyze spray")
 
