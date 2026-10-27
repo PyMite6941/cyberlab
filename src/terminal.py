@@ -9,6 +9,7 @@ from __future__ import annotations
 import cmd
 import shlex
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, font as tkfont
 from pathlib import Path
@@ -46,12 +47,13 @@ import src.modules.wireshark  # noqa: F401
 
 
 ASCII_LOGO = r"""
-  ____  _           _   _       _        ____        _   _
- / ___|| |__   ___ | |_| |_ ___| |_ __ _|  _ \  ___ | |_(_) ___  _ __
- \___ \| '_ \ / _ \| __| __/ __| __/ _` | | | |/ _ \| __| |/ _ \| '_ \
-  ___) | | | | (_) | |_| || (__| || (_| | |_| | (_) | |_| | (_) | | | |
- |____/|_| |_|\___/ \__|\__\___|\__\__,_|____/ \___/ \__|_|\___/|_| |_|
-     c y b e r t e r m i n a l   -   o f f l i n e   p r a c t i c e
+  ____ __   __ ____  _____ ____  _        _    ____  
+ / ___|\ \ / /| __ )| ____|  _ \| |      / \  | __ ) 
+| |     \ V / |  _ \|  _| | |_) | |     / _ \ |  _ \ 
+| |___   | |  | |_) | |___|  _ <| |___ / ___ \| |_) |
+ \____|  |_|  |____/|_____|_| \_\_____/_/   \_\____/ 
+       
+  CYBERLAB - offline cybersecurity practice
 """
 
 
@@ -520,6 +522,17 @@ class TerminalWindow:
 
         # Main area — terminal output (full width, no sidebar)
         self.term_font = tkfont.Font(family="Consolas", size=11)
+
+        # Header bar with gear/settings icon (top right)
+        header = tk.Frame(self.root, bg=self.bg_color)
+        header.pack(fill=tk.X, side=tk.TOP)
+        self.gear_btn = tk.Label(
+            header, text="\u2699  Styles", bg=self.bg_color, fg=self.accent_color,
+            font=("Consolas", 10, "bold"), cursor="hand2",
+        )
+        self.gear_btn.pack(side=tk.RIGHT, padx=10, pady=5)
+        self.gear_btn.bind("<Button-1>", self._open_style_menu)
+
         self.text = scrolledtext.ScrolledText(
             self.root,
             bg=self.bg_color,
@@ -598,6 +611,46 @@ class TerminalWindow:
                  f"Docs: {'available' if online else 'offline mode'}"
         )
 
+    def _open_style_menu(self, event=None) -> None:
+        """Open a small popup to change terminal colors/styles."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Styles")
+        popup.configure(bg=self.bg_color)
+        popup.geometry("300x200")
+        popup.transient(self.root)
+        popup.grab_set()
+
+        tk.Label(
+            popup, text="Terminal Styles", bg=self.bg_color,
+            fg=self.accent_color, font=("Consolas", 12, "bold"),
+        ).pack(pady=(15, 10))
+
+        def set_theme(bg, fg, accent):
+            self.bg_color = bg
+            self.fg_color = fg
+            self.accent_color = accent
+            self.root.configure(bg=bg)
+            self.text.configure(bg=bg, fg=fg, insertbackground=fg)
+            self.entry.configure(bg=bg, fg=fg, insertbackground=fg,
+                                 highlightcolor=accent)
+            self.prompt_label.configure(bg=bg, fg=accent)
+            self.status_bar.configure(bg="#0d0d0d" if bg == "#0a0a0a" else bg)
+            self.gear_btn.configure(bg=bg, fg=accent)
+            popup.destroy()
+
+        themes = [
+            ("Green (default)", "#0a0a0a", "#00ff00", "#00cc00"),
+            ("Amber", "#0a0a0a", "#ffaa00", "#ff8800"),
+            ("Blue", "#0a0a0a", "#00aaaa", "#0088cc"),
+            ("Matrix", "#000000", "#00ff00", "#008800"),
+        ]
+        for name, bg, fg, accent in themes:
+            tk.Button(
+                popup, text=name, bg="#1a1a1a", fg="#ffffff",
+                font=("Consolas", 10),
+                command=lambda b=bg, f=fg, a=accent: set_theme(b, f, a),
+            ).pack(pady=3, padx=20, fill=tk.X)
+
     def _on_enter(self, event) -> None:
         line = self.entry.get().strip()
         if not line:
@@ -607,10 +660,12 @@ class TerminalWindow:
         self.command_history.append(line)
         self.history_index = len(self.command_history)
 
-        # Execute command
+        # Execute command in a thread so the GUI never freezes
+        threading.Thread(target=self._run_command, args=(line,), daemon=True).start()
+
+    def _run_command(self, line: str) -> None:
         old_stdout = sys.stdout
         try:
-            # Redirect output through our callback
             class OutputCapture:
                 def __init__(self, cb):
                     self.cb = cb
