@@ -1,4 +1,4 @@
-"""Core package exports: lab registry, tracks, and submissions."""
+"""Core package exports: lab registry, tracks, and progress."""
 
 from src.core.lab import LabRegistry, Scenario, registry as lab_registry
 from src.core.track import (
@@ -6,13 +6,6 @@ from src.core.track import (
     Track,
     Tutorial,
     registry as track_registry,
-)
-from src.core.submission import (
-    SUBMISSIONS_PATH,
-    get_progress,
-    load_progress,
-    record_submission,
-    verify_submission,
 )
 
 __all__ = [
@@ -24,9 +17,4 @@ __all__ = [
     "registry",
     "track_registry",
     "lab_registry",
-    "SUBMISSIONS_PATH",
-    "get_progress",
-    "load_progress",
-    "record_submission",
-    "verify_submission",
 ]

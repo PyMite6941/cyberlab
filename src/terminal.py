@@ -13,7 +13,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, font as tkfont
 from pathlib import Path
 
-from src.core import lab_registry, track_registry, get_progress, load_progress
+from src.core import lab_registry, track_registry
 from src.core.docs import (
     is_online, get_docs_for_tool, get_all_docs, download_doc,
     get_offline_docs, get_hint_for_tool, is_tool_available,
@@ -65,7 +65,6 @@ class CyberTerminalGUI(cmd.Cmd):
         self.output_callback = output_callback
         self.manager = TutorialManager()
         self._selected_tutorial = None
-        load_progress()
         self.intro = self._build_banner()
 
     def _build_banner(self) -> str:
@@ -519,18 +518,10 @@ class TerminalWindow:
         view_menu.add_command(label="Tutorials Web", command=self._open_web)
         menubar.add_cascade(label="View", menu=view_menu)
 
-        # Main paned window (Terminator-inspired split panes)
-        self.paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        self.paned.pack(fill=tk.BOTH, expand=True)
-
-        # Left pane — terminal output
-        left_frame = tk.Frame(self.paned, bg=self.bg_color)
-        self.paned.add(left_frame, weight=3)
-
-        # Terminal text area
+        # Main area — terminal output (full width, no sidebar)
         self.term_font = tkfont.Font(family="Consolas", size=11)
         self.text = scrolledtext.ScrolledText(
-            left_frame,
+            self.root,
             bg=self.bg_color,
             fg=self.fg_color,
             insertbackground=self.fg_color,
@@ -543,43 +534,6 @@ class TerminalWindow:
         )
         self.text.pack(fill=tk.BOTH, expand=True)
         self.text.configure(state=tk.DISABLED)
-
-        # Right pane — info / status
-        right_frame = tk.Frame(self.paned, bg="#0d0d0d", width=300)
-        self.paned.add(right_frame, weight=1)
-
-        tk.Label(
-            right_frame, text="cyberterminal", bg="#0d0d0d", fg=self.accent_color,
-            font=("Consolas", 14, "bold"), anchor="w",
-        ).pack(fill=tk.X, padx=10, pady=(10, 0))
-
-        self.status_label = tk.Label(
-            right_frame, text="Network: OFFLINE", bg="#0d0d0d", fg="#ff6600",
-            font=("Consolas", 10), anchor="w",
-        )
-        self.status_label.pack(fill=tk.X, padx=10, pady=(5, 10))
-
-        tk.Label(
-            right_frame, text="Commands", bg="#0d0d0d", fg=self.fg_color,
-            font=("Consolas", 11, "bold"), anchor="w",
-        ).pack(fill=tk.X, padx=10, pady=(10, 0))
-
-        self.cmd_list = tk.Listbox(
-            right_frame, bg="#0d0d0d", fg=self.fg_color,
-            selectbackground=self.accent_color, selectforeground=self.bg_color,
-            font=self.term_font, bd=0, highlightthickness=0,
-        )
-        self.cmd_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-        commands = [
-            "help", "tutorials", "tracks", "difficulty",
-            "focus <id>", "next", "tutorial <id>",
-            "labs", "run <id>", "submit <answer>",
-            "progress", "docs", "burp", "wireshark",
-            "nmap", "sqlmap", "hydra", "nikto", "cookie",
-            "webscan", "osint", "auth", "siem", "clear", "exit",
-        ]
-        for c in commands:
-            self.cmd_list.insert(tk.END, c)
 
         # Bottom input bar
         input_frame = tk.Frame(self.root, bg=self.bg_color)
@@ -611,7 +565,6 @@ class TerminalWindow:
         self.entry.bind("<Up>", self._on_up)
         self.entry.bind("<Down>", self._on_down)
         self.entry.bind("<Tab>", self._on_tab)
-        self.cmd_list.bind("<Double-Button-1>", self._on_cmd_double_click)
 
     def _setup_terminal(self) -> None:
         # Print banner
@@ -639,10 +592,6 @@ class TerminalWindow:
 
     def _update_status(self) -> None:
         online = is_online()
-        self.status_label.config(
-            text=f"Network: {'ONLINE' if online else 'OFFLINE'}",
-            fg="#00ff00" if online else "#ff6600",
-        )
         self.status_bar.config(
             text=f"{'ONLINE' if online else 'OFFLINE'}  |  "
                  f"Type 'help' for commands  |  "
@@ -733,14 +682,6 @@ class TerminalWindow:
             self.entry.delete(0, tk.END)
             self.entry.insert(0, matches[0] + " ")
         return "break"
-
-    def _on_cmd_double_click(self, event) -> None:
-        selection = self.cmd_list.curselection()
-        if selection:
-            cmd_text = self.cmd_list.get(selection[0])
-            self.entry.delete(0, tk.END)
-            self.entry.insert(0, cmd_text)
-            self.entry.focus_set()
 
     def _show_help(self) -> None:
         self.term.do_help("")
