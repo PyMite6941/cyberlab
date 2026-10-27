@@ -6,9 +6,11 @@ Repo: `C:/Users/gresh/OneDrive/ドキュメント/portfolio/cyberlab`
 Git: commits on `master`, remote `origin` = `https://github.com/PyMite6941/cyberlab.git`
 
 ### Verified
-- `cyberterminal` console script installed
-- run.bat / run.sh launch the terminal directly
+- `cyberterminal` console script installed via `install.py --non-interactive --recreate`
+- run.bat / run.sh launch `python -m src.terminal` directly
+- Terminal is a windowed emulated terminal (typewriter-style): type directly in the buffer, no separate entry box, lines iterable, arrow-key history, tab-completion, gear/`⚙ Styles` icon for theme changes
 - Terminal commands: help, tutorials, tracks, difficulty, focus, next, tutorial, labs, run, submit, progress, docs, burp, wireshark, nmap, sqlmap, hydra, nikto, cookie, webscan, osint, auth, siem, clear, exit/quit
+- Each tool (burp, wireshark, nmap, sqlmap, hydra, nikto, cookie, webscan, osint, auth, siem) launches in its own Toplevel window with fully simulated, randomized packets/traffic — nothing touches the network
 - `help web` opens HTML tutorial search page in browser
 - 26 tutorials across 5 tracks (web, network, auth, siem, osint)
 - Challenge system: dynamic generation, computed verification, NO hardcoded flags
@@ -20,6 +22,7 @@ Git: commits on `master`, remote `origin` = `https://github.com/PyMite6941/cyber
 - Interactive install: prompts for docs, tools, tutorials; --non-interactive, --cache-wheels, --offline, --recreate flags
 - All source files have comprehensive docstrings
 - No hardcoded FLAG{...} anywhere in src/
+- Dead submission system removed (src/core/submission.py + src/data/submissions.json deleted)
 
 ### Files
 - `pyproject.toml` — `cyberterminal = "src.terminal:main"` entry point, packages = ["src"]
