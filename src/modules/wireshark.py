@@ -54,8 +54,18 @@ class Packet:
     length: int
     info: str
     raw: bytes = field(repr=False)
-    tcp_flags: Optional[str] = None  # e.g. "SYN" or "SYN,ACK" for TCP and HTTP
+    tcp_flags: Optional[str] = None  # e.g. "SYN" or "SYN,ACK" for TCP
     dns_query: Optional[str] = None  # queried name for DNS
+
+    def __post_init__(self) -> None:
+        # The display filters read these. Fill them in from the info text the
+        # generators write ("SYN 51514>80", "Standard query example.com A").
+        words = self.info.split()
+        if self.tcp_flags is None and self.protocol == "TCP" and words:
+            self.tcp_flags = words[0]
+        if (self.dns_query is None and self.protocol == "DNS"
+                and self.info.startswith("Standard query ") and len(words) > 2):
+            self.dns_query = words[2]
 
     def time_delta(self, prev: Optional["Packet"]) -> str:
         if prev is None:
@@ -587,16 +597,23 @@ class WiresharkShell(cmd.Cmd):
         self._print_table(self.filtered)
 
     def do_list(self, arg: str) -> None:
-        """List packets with optional display filter.
+        """List packets, optionally through a Wireshark display filter.
 
         usage: list
-        usage: list proto==HTTP
-        usage: list ip==192.168.1.10
-        usage: list port==80
-        usage: list proto==HTTP and port==80
+        usage: list dns
+        usage: list ip.addr == 10.0.0.99
+        usage: list tcp.port == 80 || udp.port == 53
+        usage: list tcp.flags.syn == 1 && tcp.flags.ack == 0
+        usage: list dns.qry.name contains "example"
+        usage: list frame.len > 100 and not arp
+        (the older proto==TCP, ip==x and port==n still work)
         """
         if arg:
-            self.filtered = self._apply_filter(arg)
+            try:
+                self.filtered = self._apply_filter(arg)
+            except FilterError as e:
+                print(f"Invalid filter: {e}")
+                return
             print(f"Filter '{arg}': {len(self.filtered)} packet(s)")
         else:
             self.filtered = list(self.packets)
@@ -679,25 +696,9 @@ class WiresharkShell(cmd.Cmd):
         pass
 
     def _apply_filter(self, expr: str) -> List[Packet]:
-        results = []
-        for p in self.packets:
-            ok = True
-            for term in expr.split(" and "):
-                term = term.strip()
-                if term.startswith("proto=="):
-                    val = term.split("==", 1)[1]
-                    ok = ok and p.protocol == val
-                elif term.startswith("ip=="):
-                    val = term.split("==", 1)[1]
-                    ok = ok and (p.src_ip == val or p.dst_ip == val)
-                elif term.startswith("port=="):
-                    val = int(term.split("==", 1)[1])
-                    ok = ok and (p.src_port == val or p.dst_port == val)
-                else:
-                    ok = False
-            if ok:
-                results.append(p)
-        return results
+        """Packets matching a display filter. Raises FilterError if it's invalid."""
+        matches = compile_filter(expr)
+        return [p for p in self.packets if matches(p)]
 
     def _print_table(self, packets: List[Packet]) -> None:
         print(f"{'No.':<5} {'Time':<12} {'Source':<18} {'Destination':<18} "
