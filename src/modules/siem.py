@@ -60,48 +60,62 @@ def generate_events(count: int = 30, seed: int = 42) -> List[dict]:
     return events
 
 
+# Accounts expected to use sudo / admin logins.
+ADMIN_USERS = {"admin"}
+
+
 def filter_denied(events: List[dict]) -> List[dict]:
     return [e for e in events if e["event"] == "deny"]
 
 
 def analyze_brute(events: List[dict]) -> dict:
-    """Detect brute force: many failed logins from same source."""
+    """Detect brute force: one source with many failed logins."""
     from collections import Counter
     failed = [e for e in events if e["event"] == "failed_login"]
     src_counter = Counter(e["src_ip"] for e in failed)
+    top = src_counter.most_common(1)
     return {
         "failed_count": len(failed),
         "unique_sources": len(src_counter),
         "top_sources": src_counter.most_common(3),
-        "is_brute_force": len(failed) >= 5 and len(src_counter) == 1,
+        "source": top[0][0] if top else None,
+        "is_brute_force": bool(top) and top[0][1] >= 5,
     }
 
 
 def analyze_scan(events: List[dict]) -> dict:
-    """Detect port scanning: many denied connections to different ports from same source."""
-    from collections import Counter
+    """Detect port scanning: one source denied on many different ports."""
+    from collections import Counter, defaultdict
     denied = filter_denied(events)
     src_counter = Counter(e["src_ip"] for e in denied)
     port_counter = Counter(e["port"] for e in denied)
+    ports_by_src = defaultdict(set)
+    for e in denied:
+        ports_by_src[e["src_ip"]].add(e["port"])
+    source, ports = max(ports_by_src.items(), key=lambda kv: len(kv[1]), default=(None, set()))
     return {
         "denied_count": len(denied),
         "unique_sources": len(src_counter),
         "unique_ports": len(port_counter),
         "top_sources": src_counter.most_common(3),
-        "is_port_scan": len(denied) >= 5 and len(port_counter) >= 3,
+        "source": source,
+        "ports_from_source": len(ports),
+        "is_port_scan": len(ports) >= 5,
     }
 
 
 def analyze_escalate(events: List[dict]) -> dict:
-    """Detect privilege escalation: sudo/admin events from non-admin users."""
+    """Detect privilege escalation: sudo/admin events from users who aren't admins."""
     from collections import Counter
     priv_events = [e for e in events if e["event"] in ("sudo", "admin_login")]
-    user_counter = Counter(e["user"] for e in priv_events)
+    user_counter = Counter(e.get("user") for e in priv_events)
+    unexpected = Counter(e.get("user") for e in priv_events if e.get("user") not in ADMIN_USERS)
     return {
         "priv_event_count": len(priv_events),
         "unique_users": len(user_counter),
         "top_users": user_counter.most_common(3),
-        "is_escalation": len(priv_events) >= 2,
+        "unexpected_users": unexpected.most_common(),
+        "is_escalation": bool(unexpected),
     }
 
 
@@ -111,7 +125,8 @@ class SIEMShell(cmd.Cmd):
 
     def __init__(self) -> None:
         super().__init__()
-        self.events = generate_events()
+        # The planted attacks plus background noise, in time order.
+        self.events = sorted(SIEM_EVENTS + generate_events(), key=lambda e: e["timestamp"])
 
     def do_logs(self, arg: str) -> None:
         """List SIEM events.
@@ -178,7 +193,7 @@ class SIEMShell(cmd.Cmd):
             print(f"  Top sources: {result['top_sources']}")
             print(f"  Is brute force: {result['is_brute_force']}")
             if result["is_brute_force"]:
-                print("  >>> Brute force detected: repeated failed logins from single source.")
+                print(f"  >>> Brute force detected: repeated failed logins from {result['source']}.")
         elif arg == "scan":
             result = analyze_scan(self.events)
             print("Port Scan Analysis:")
@@ -188,7 +203,8 @@ class SIEMShell(cmd.Cmd):
             print(f"  Top sources: {result['top_sources']}")
             print(f"  Is port scan: {result['is_port_scan']}")
             if result["is_port_scan"]:
-                print("  >>> Port scan detected: single source probing multiple ports.")
+                print(f"  >>> Port scan detected: {result['source']} was denied on "
+                      f"{result['ports_from_source']} different ports.")
         elif arg == "escalate":
             result = analyze_escalate(self.events)
             print("Privilege Escalation Analysis:")
@@ -196,8 +212,9 @@ class SIEMShell(cmd.Cmd):
             print(f"  Unique users: {result['unique_users']}")
             print(f"  Top users: {result['top_users']}")
             print(f"  Is escalation: {result['is_escalation']}")
+            print(f"  Non-admin users with privileged activity: {result['unexpected_users']}")
             if result["is_escalation"]:
-                print("  >>> Privilege escalation detected: suspicious sudo/admin activity.")
+                print("  >>> Privilege escalation detected: sudo/admin activity from non-admin accounts.")
         else:
             print("usage: analyze brute | scan | escalate")
 

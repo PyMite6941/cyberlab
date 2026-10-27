@@ -21,6 +21,7 @@ import argparse
 import cmd
 import shlex
 import random
+import zlib
 from typing import Optional
 
 
@@ -96,7 +97,9 @@ def generate_scan(target: str, port: int = 80, seed: int = 42) -> dict:
     Returns:
         A dict with scan results including headers, tech, directories, and issues.
     """
-    rng = random.Random(hash(target + str(seed)) % (2**32))
+    # crc32, not hash(): str hashes are randomized per process, so hash()
+    # gave different results every run.
+    rng = random.Random(zlib.crc32(f"{target}{seed}".encode()))
 
     # Determine scheme
     scheme = "https" if port == 443 else "http"
