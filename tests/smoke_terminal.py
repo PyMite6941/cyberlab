@@ -6,6 +6,7 @@ shells the way the windows do, one line at a time, and checks:
 - tool commands and `run <lab>` open the right tool window
 - a fresh install starts with no progress, and `submit` records progress
 - the simulator detection / cracking fixes
+- the read-only shell: ls, ll, cd, pwd, cat, whoami, hostname
 - the main window reads typed commands correctly (skipped with no display)
 
     python3 tests/smoke_terminal.py
@@ -122,6 +123,45 @@ check(any(u == "user1" for u, _ in analyze_escalate(siem)["unexpected_users"]), 
 check(run_sqlmap_test("http://lab.local/")["vulnerable_count"] == 0, "sqlmap: no parameters, nothing reported")
 check(run_sqlmap_test("http://lab.local/search?q=x")["vulnerable_count"] == 1, "sqlmap: reports the q parameter")
 
+# --- shell commands over the read-only lab filesystem ---
+term, out = new_term()
+_, text = send(term, out, "pwd")
+check(text.strip() == "/home/student", "pwd starts in /home/student")
+_, text = send(term, out, "ls")
+check(all(x in text for x in ("README.txt", "tutorials/", "captures/")), f"ls shows home ({text.strip()})")
+_, text = send(term, out, "cat README.txt")
+check("Welcome to cyberlab" in text, "cat README.txt")
+send(term, out, "cd tutorials")
+check(term.prompt == "student@cyberlab:~/tutorials$ ", f"prompt follows cd ({term.prompt!r})")
+_, text = send(term, out, "ls")
+check("web-sqli-01.txt" in text, "tutorials/ has one briefing per tutorial")
+_, text = send(term, out, "cat web-sqli-01.txt")
+check("Steps:" in text and "$ burp" in text, "a briefing lists the tutorial's steps")
+send(term, out, "cd /etc")
+check(term.prompt == "student@cyberlab:/etc$ ", "prompt shows paths outside home in full")
+_, text = send(term, out, "cat passwd")
+check("student:x:1000" in text, "cat /etc/passwd")
+_, text = send(term, out, "cd -")
+check(text.strip() == "/home/student/tutorials" and term.fs.cwd == "/home/student/tutorials", "cd - goes back")
+send(term, out, "cd")
+check(term.fs.cwd == "/home/student", "cd with no argument goes home")
+_, text = send(term, out, "cd nowhere")
+check("No such file or directory" in text and term.fs.cwd == "/home/student", "cd to a missing folder fails")
+_, text = send(term, out, "cd README.txt")
+check("Not a directory" in text, "cd into a file fails")
+_, text = send(term, out, "ll")
+check("dr-xr-xr-x" in text and "-r--r--r--" in text and " ./" not in text and text.splitlines()[0].endswith(" ."),
+      "ll is a read-only long listing with . and ..")
+_, text = send(term, out, "cat captures/dns_tunnel.pcap")
+check("binary packet capture" in text, "cat on a capture explains instead of dumping bytes")
+_, text = send(term, out, "rm README.txt")
+check("Read-only file system" in text, "write commands are refused")
+_, text = send(term, out, "whoami")
+_, text2 = send(term, out, "hostname")
+check(text.strip() == "student" and text2.strip() == "cyberlab", "whoami / hostname")
+_, text = send(term, out, "nosuchcmd")
+check("nosuchcmd: command not found" in text, "unknown commands say 'command not found'")
+
 # --- main window: typed commands are read and echoed once ---
 import time  # noqa: E402
 import tkinter as tk  # noqa: E402
@@ -132,7 +172,7 @@ except tk.TclError as e:
     print(f"SKIP  main window checks (no display: {e})")
 else:
     win.root.withdraw()
-    PROMPT = terminal.CyberTerminalGUI.prompt
+    PROMPT = win.term.prompt
 
     def type_and_run(line):
         win.text.insert("end-1c", line)
@@ -151,7 +191,9 @@ else:
     check("burp" in buf.split(PROMPT + "help", 1)[1], "main window: help output appears below the command")
     check(lines[-1] == PROMPT and win.awaiting_input, "main window: a fresh prompt is the last line")
     buf = type_and_run("nosuchcmd")
-    check("Unknown syntax: nosuchcmd" in buf, "main window: typos are reported in the window")
+    check("nosuchcmd: command not found" in buf, "main window: typos are reported in the window")
+    buf = type_and_run("cd tutorials")
+    check(buf.splitlines()[-1] == "student@cyberlab:~/tutorials$ ", "main window: the prompt follows cd")
     win.root.destroy()
 
 print(f"\n{failures} failure(s)")

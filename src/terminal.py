@@ -18,6 +18,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, font as tkfont
 from pathlib import Path
+from typing import Optional
 
 from src.core import lab_registry, track_registry
 from src.core.docs import (
@@ -35,6 +36,7 @@ from src.modules.osint import OsintShell
 from src.modules.siem import SIEMShell
 from src.modules.sqlmap import SqlmapShell
 from src.modules.wireshark import WiresharkShell
+from src.core.vfs import HOST, USER, VirtualFS, WRITE_COMMANDS
 from src.tutorials.manager import TutorialManager
 
 # Self-register modules (scenarios/challenges register at import)
@@ -66,11 +68,15 @@ class CyberTerminalGUI(cmd.Cmd):
 
     # Looks like the Linux shell security tools are used from, with a fixed
     # lab user so every learner (and every tutorial screenshot) sees the same.
-    prompt = "student@cyberlab:~$ "
+    # It follows the current directory, e.g. student@cyberlab:~/captures$
+    @property
+    def prompt(self) -> str:
+        return f"{USER}@{HOST}:{self.fs.display_cwd()}$ "
 
     def __init__(self, output_callback=None) -> None:
         super().__init__()
         self.output_callback = output_callback
+        self.fs = VirtualFS()  # read-only lab filesystem for ls, cd, cat ...
         self.manager = TutorialManager()
         self._selected_tutorial = None
         self.intro = self._build_banner()
@@ -145,8 +151,77 @@ class CyberTerminalGUI(cmd.Cmd):
         for name, desc in cmds:
             self._writeln(f"  {name:<35} {desc}")
         self._writeln()
+        self._writeln("Shell (read-only lab filesystem):")
+        self._writeln()
+        shell_cmds = [
+            ("ls [-la] [path]", "list a directory"),
+            ("ll [path]", "long listing (ls -alF)"),
+            ("cd [path]", "change directory (cd, cd ~, cd .., cd -)"),
+            ("pwd", "print the current directory"),
+            ("cat <file>...", "print files, e.g. cat README.txt"),
+            ("whoami / hostname", "who and where you are"),
+        ]
+        for name, desc in shell_cmds:
+            self._writeln(f"  {name:<35} {desc}")
+        self._writeln()
         self._writeln("Type 'help web' to browse tutorials in a browser.")
         self._writeln("All traffic is simulated locally. Nothing touches the network.")
+
+    # ---------- shell commands (read-only lab filesystem) ----------
+
+    def _shell_args(self, arg: str) -> Optional[list]:
+        try:
+            return shlex.split(arg)
+        except ValueError as e:
+            self._writeln(f"bash: {e}")
+            return None
+
+    def do_ls(self, arg: str) -> None:
+        """List a directory.  usage: ls [-l] [-a] [path ...]"""
+        args = self._shell_args(arg)
+        if args is not None:
+            self._write(self.fs.ls(args))
+
+    def do_ll(self, arg: str) -> None:
+        """Long listing including . and .. (ls -alF).  usage: ll [path ...]"""
+        args = self._shell_args(arg)
+        if args is not None:
+            self._write(self.fs.ls(args, long=True, all_=True))
+
+    def do_cd(self, arg: str) -> None:
+        """Change directory.  usage: cd [path | ~ | .. | -]"""
+        args = self._shell_args(arg)
+        if args is None:
+            return
+        if len(args) > 1:
+            self._writeln("bash: cd: too many arguments")
+            return
+        self._write(self.fs.cd(args[0] if args else ""))
+
+    def do_pwd(self, arg: str) -> None:
+        """Print the current directory."""
+        self._write(self.fs.pwd())
+
+    def do_cat(self, arg: str) -> None:
+        """Print files.  usage: cat <file> [file ...]"""
+        args = self._shell_args(arg)
+        if args is not None:
+            self._write(self.fs.cat(args))
+
+    def do_whoami(self, arg: str) -> None:
+        """Print the current user."""
+        self._writeln(USER)
+
+    def do_hostname(self, arg: str) -> None:
+        """Print the machine's name."""
+        self._writeln(HOST)
+
+    def default(self, line: str) -> None:
+        word = line.split()[0] if line.split() else line
+        if word in WRITE_COMMANDS:
+            self._writeln(f"{word}: Read-only file system (everything in cyberlab is simulated)")
+        else:
+            self._writeln(f"{word}: command not found (type 'help' for commands)")
 
     def _open_tutorial_webpage(self) -> None:
         """Open the HTML tutorial search page."""
@@ -839,7 +914,8 @@ class TerminalWindow:
         for c in ["help", "tutorials", "tracks", "difficulty", "focus", "next",
                   "tutorial", "labs", "run", "submit", "progress", "docs",
                   "burp", "wireshark", "nmap", "sqlmap", "hydra", "nikto",
-                  "cookie", "webscan", "osint", "auth", "siem", "clear", "exit"]:
+                  "cookie", "webscan", "osint", "auth", "siem", "clear", "exit",
+                  "ls", "ll", "cd", "pwd", "cat", "whoami", "hostname"]:
             if c.startswith(text):
                 matches.append(c)
         if len(matches) == 1:
