@@ -597,10 +597,12 @@ class TerminalWindow:
         self.root.configure(bg=self.bg_color)
 
         # State
-        self.term = CyberTerminalGUI(output_callback=self._append_output)
+        # Commands run on a worker thread; their output is handed to the Tk
+        # thread so it lands in order with print() output and the next prompt.
+        self.term = CyberTerminalGUI(output_callback=self._post_output)
         self.command_history: list[str] = []
         self.history_index = 0
-        self.input_start = "1.0"  # index where current input line begins
+        self.awaiting_input = False  # a prompt is showing and accepts typing
 
         self._build_ui()
         self._setup_terminal()
@@ -671,20 +673,35 @@ class TerminalWindow:
         self._update_status()
 
     # ----- typewriter input management -----
+    # The prompt and what the user types sit on the last line of the buffer.
+    # The "input_start" mark sits right after the prompt (left gravity, so
+    # typed text goes after it). The mark used to sit before the prompt, so
+    # every command was read as "yberterminal> <command>" and failed.
 
     def _start_input_line(self) -> None:
-        """Place the prompt at the end of the buffer and mark input start."""
-        self.input_start = self.text.index(tk.INSERT)
-        self.text.insert(tk.INSERT, "cyberterminal> ")
-        self.text.mark_set("input_start", self.input_start)
+        """Show a fresh prompt on a new last line."""
+        if self.awaiting_input:
+            return
+        if self.text.compare("end-1c", "!=", "end-1c linestart"):
+            self.text.insert("end-1c", "\n")
+        self.text.insert("end-1c", self.term.prompt)
+        self.text.mark_set("input_start", "end-1c")
+        self.text.mark_gravity("input_start", tk.LEFT)
+        self.text.mark_set(tk.INSERT, "end-1c")
+        self.text.see(tk.END)
+        self.awaiting_input = True
 
     def _get_input(self) -> str:
-        """Read what the user has typed on the current input line."""
-        return self.text.get("input_start + 1c", tk.END).rstrip("\n")
+        """Read what the user has typed after the prompt."""
+        return self.text.get("input_start", "end-1c")
 
     def _clear_input(self) -> None:
-        """Clear the current input line (after the prompt)."""
-        self.text.delete("input_start + 1c", tk.END)
+        """Clear what the user has typed after the prompt."""
+        self.text.delete("input_start", "end-1c")
+
+    def _post_output(self, text: str) -> None:
+        """Queue output for the Tk thread (safe to call from the command thread)."""
+        self.root.after(0, self._append_output, text)
 
     def _append_output(self, text: str) -> None:
         if text == "__CLEAR__":
@@ -693,20 +710,23 @@ class TerminalWindow:
         if text == "__QUIT__":
             self.root.after(100, self.root.quit)
             return
-        # Insert output before the current input line
-        self.text.mark_set("insert", self.input_start)
-        self.text.insert(self.input_start, text)
+        if self.awaiting_input:
+            # A prompt is showing: put the output on the lines above it.
+            if not text.endswith("\n"):
+                text += "\n"
+            self.text.insert("input_start linestart", text)
+        else:
+            self.text.insert("end-1c", text)
         self.text.see(tk.END)
-        # Recompute input_start after insertion
-        self.input_start = self.text.index(f"{self.input_start} + {len(text.splitlines())} lines")
 
     def _clear_terminal(self) -> None:
         self.text.configure(state=tk.NORMAL)
         self.text.delete("1.0", tk.END)
-        self.text.configure(state=tk.DISABLED)
-        self.text.configure(state=tk.NORMAL)
+        prompt_was_showing = self.awaiting_input
+        self.awaiting_input = False
         self._append_output(self.term.intro)
-        self._start_input_line()
+        if prompt_was_showing:  # cleared from the menu; a command run will re-prompt itself
+            self._start_input_line()
 
     def _update_status(self) -> None:
         online = is_online()
@@ -756,21 +776,30 @@ class TerminalWindow:
     # ----- key event handlers (typewriter feel) -----
 
     def _on_key(self, event) -> str:
-        # Prevent typing before the input line start
+        if not event.char:
+            return None  # arrows, modifiers, shortcuts
+        if not self.awaiting_input:
+            return "break"  # a command is still running
+        # Typing anywhere above the prompt types at the end of the input line
         if self.text.compare(tk.INSERT, "<", "input_start"):
-            self.text.mark_set(tk.INSERT, tk.END)
-            return "break"
+            self.text.mark_set(tk.INSERT, "end-1c")
         return None  # allow normal typing
 
     def _on_backspace(self, event) -> str:
-        if self.text.compare(tk.INSERT, "<=", "input_start"):
-            return "break"  # cannot delete the prompt
+        if not self.awaiting_input or self.text.compare(tk.INSERT, "<=", "input_start"):
+            return "break"  # cannot delete the prompt or past output
         return None  # allow normal backspace
 
     def _on_return(self, event) -> str:
+        if not self.awaiting_input:
+            return "break"  # a command is still running
         line = self._get_input().strip()
-        self.text.insert(tk.END, "\n")
-        self._append_output(f"cyberterminal> {line}\n")
+        self.awaiting_input = False
+        # The prompt and the typed line stay in the buffer as the command's echo.
+        self.text.insert("end-1c", "\n")
+        if not line:
+            self._start_input_line()
+            return "break"
         self.command_history.append(line)
         self.history_index = len(self.command_history)
 
@@ -779,26 +808,28 @@ class TerminalWindow:
         return "break"
 
     def _on_up(self, event) -> str:
-        if not self.command_history:
+        if not self.command_history or not self.awaiting_input:
             return "break"
         self._clear_input()
         if self.history_index > 0:
             self.history_index -= 1
-        self.text.insert("input_start + 1c", self.command_history[self.history_index])
+        self.text.insert("input_start", self.command_history[self.history_index])
         return "break"
 
     def _on_down(self, event) -> str:
-        if not self.command_history:
+        if not self.command_history or not self.awaiting_input:
             return "break"
         self._clear_input()
         if self.history_index < len(self.command_history) - 1:
             self.history_index += 1
-            self.text.insert("input_start + 1c", self.command_history[self.history_index])
+            self.text.insert("input_start", self.command_history[self.history_index])
         else:
             self.history_index = len(self.command_history)
         return "break"
 
     def _on_tab(self, event) -> str:
+        if not self.awaiting_input:
+            return "break"
         text = self._get_input()
         if not text:
             return "break"
@@ -811,12 +842,15 @@ class TerminalWindow:
                 matches.append(c)
         if len(matches) == 1:
             self._clear_input()
-            self.text.insert("input_start + 1c", matches[0] + " ")
+            self.text.insert("input_start", matches[0] + " ")
         return "break"
 
     def _run_command(self, line: str) -> None:
         old_stdout = sys.stdout
         try:
+            # Inside this class `self` is the capture, not the window: it
+            # used to call self.root / self._append_output, which made every
+            # print() from a command raise AttributeError.
             class OutputCapture:
                 def __init__(self, cb):
                     self.cb = cb
@@ -825,36 +859,36 @@ class TerminalWindow:
                     self.buf += s
                     while "\n" in self.buf:
                         part, self.buf = self.buf.split("\n", 1)
-                        self.root.after(0, lambda p=part: self._append_output(p + "\n"))
+                        self.cb(part + "\n")
                     return len(s)
                 def flush(self):
                     if self.buf:
-                        self.root.after(0, lambda: self._append_output(self.buf))
+                        self.cb(self.buf)
                         self.buf = ""
 
-            cap = OutputCapture(self._append_output)
+            cap = OutputCapture(self._post_output)
             sys.stdout = cap
+            self.term.stdout = cap  # cmd's own messages, e.g. "*** Unknown syntax"
             try:
                 stop = self.term.onecmd(line)
             finally:
                 sys.stdout = old_stdout
-                if cap.buf:
-                    self.root.after(0, lambda: self._append_output(cap.buf))
+                cap.flush()
 
             if stop:
                 self.root.after(100, self.root.quit)
         except SystemExit:
             self.root.after(100, self.root.quit)
         except Exception as e:
-            self.root.after(0, lambda: self._append_output(f"Error: {e}\n"))
+            self._post_output(f"Error: {e}\n")  # format now; `e` is cleared after this block
 
-        # Start a fresh input line
-        self.root.after(0, lambda: self._start_input_line())
+        # Start a fresh input line once the queued output has been shown
+        self.root.after(0, self._start_input_line)
         self.root.after(0, self._update_status)
 
     def _show_help(self) -> None:
         self.term.do_help("")
-        self._append_output("\n")
+        self._post_output("\n")
 
     def _open_web(self) -> None:
         self.term.do_help("web")

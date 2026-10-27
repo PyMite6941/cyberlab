@@ -6,6 +6,7 @@ shells the way the windows do, one line at a time, and checks:
 - tool commands and `run <lab>` open the right tool window
 - a fresh install starts with no progress, and `submit` records progress
 - the simulator detection / cracking fixes
+- the main window reads typed commands correctly (skipped with no display)
 
     python3 tests/smoke_terminal.py
 """
@@ -120,6 +121,37 @@ check(analyze_scan(siem)["is_port_scan"], "siem finds the port scan")
 check(any(u == "user1" for u, _ in analyze_escalate(siem)["unexpected_users"]), "siem flags user1's sudo")
 check(run_sqlmap_test("http://lab.local/")["vulnerable_count"] == 0, "sqlmap: no parameters, nothing reported")
 check(run_sqlmap_test("http://lab.local/search?q=x")["vulnerable_count"] == 1, "sqlmap: reports the q parameter")
+
+# --- main window: typed commands are read and echoed once ---
+import time  # noqa: E402
+import tkinter as tk  # noqa: E402
+
+try:
+    win = terminal.TerminalWindow()
+except tk.TclError as e:
+    print(f"SKIP  main window checks (no display: {e})")
+else:
+    win.root.withdraw()
+
+    def type_and_run(line):
+        win.text.insert("end-1c", line)
+        win._on_return(None)
+        deadline = time.time() + 5
+        while not win.awaiting_input and time.time() < deadline:
+            win.root.update()
+            time.sleep(0.01)
+        win.root.update()
+        return win.text.get("1.0", "end-1c")
+
+    buf = type_and_run("help")
+    lines = buf.splitlines()
+    check("yberterminal" not in buf and lines.count("cyberterminal> help") == 1,
+          "main window: 'help' is read as help and echoed once")
+    check("burp" in buf.split("cyberterminal> help", 1)[1], "main window: help output appears below the command")
+    check(lines[-1] == "cyberterminal> " and win.awaiting_input, "main window: a fresh prompt is the last line")
+    buf = type_and_run("nosuchcmd")
+    check("Unknown syntax: nosuchcmd" in buf, "main window: typos are reported in the window")
+    win.root.destroy()
 
 print(f"\n{failures} failure(s)")
 raise SystemExit(1 if failures else 0)
