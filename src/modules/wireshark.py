@@ -1,28 +1,36 @@
 """Simulated packet capture (Wireshark-style), fully offline.
 
-Generates synthetic Ethernet/IP/TCP/UDP/HTTP/DNS packets, displays them in a
-Wireshark-like table, supports display filters, follows "streams", and can
-export a real pcap file you can open in actual Wireshark.
+Generates synthetic Ethernet/IP/TCP/UDP/HTTP/DNS packets with embedded
+challenge scenarios. Challenges generate dynamic data each time and verify
+answers against computed values - no hardcoded flags.
 
 No real NIC or network is used - everything is synthesized in memory.
+Packets can be exported to real pcap files for analysis in Wireshark.
 
 To launch from cyberterminal:
 
     cyberterminal> wireshark
     cyberterminal> wireshark --packets 50
     cyberterminal> wireshark --export capture.pcap
+    cyberterminal> challenge list
+    cyberterminal> challenge wireshark-dns-01
 """
 
 from __future__ import annotations
 
 import argparse
 import cmd
+import random
 import shlex
 import struct
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List, Optional
+
+from src.core.challenge import Challenge, ChallengeRegistry, ChallengeResult
+from src.core.challenge import CAPTURES_DIR
+
+registry = ChallengeRegistry()
 
 
 # ---------------------------------------------------------------------------
@@ -64,23 +72,45 @@ MACS = [
     "ff:ff:ff:ff:ff:ff",
 ]
 IPS = ["192.168.1.10", "192.168.1.20", "10.0.0.5", "10.0.0.99", "8.8.8.8", "1.1.1.1"]
+HTTP_PATHS = ["/index.html", "/login", "/api/data", "/search?q=test", "/admin"]
+DNS_NAMES = ["example.com", "lab.local", "google.com", "github.com", "update.microsoft.com"]
 
 
 def _rand_choice(seq, rng):
-    import random
     return rng.choice(seq)
+
+
+def build_raw_frame(src_mac, dst_mac, src_ip, dst_ip, proto, src_port,
+                    dst_port, payload: bytes) -> bytes:
+    """Build a minimal but structurally valid Ethernet frame."""
+    dst = bytes.fromhex(dst_mac.replace(":", ""))
+    src = bytes.fromhex(src_mac.replace(":", ""))
+    eth = dst + src + b"\x08\x00"
+
+    protocol = 17 if proto == "UDP" else 6
+    total_len = 20 + 20 + len(payload)
+    src_ip_bytes = bytes(int(x) for x in src_ip.split("."))
+    dst_ip_bytes = bytes(int(x) for x in dst_ip.split("."))
+    ip_hdr = struct.pack("!BBHHHBBH4s4s",
+                         0x45, 0x00, total_len, 0x0001, 0x0000,
+                         64, protocol, 0x0000, src_ip_bytes, dst_ip_bytes)
+
+    if proto == "UDP":
+        transport = struct.pack("!HHHH", src_port or 0, dst_port or 0,
+                                8 + len(payload), 0x0000)
+    else:
+        transport = struct.pack("!HHIIHHHHH",
+                                src_port or 0, dst_port or 0,
+                                0, 0, 0x5000, 0x0010, 8192, 0, 0)
+
+    return eth + ip_hdr + transport + payload
 
 
 def generate_packets(count: int = 25, seed: int = 42) -> List[Packet]:
     """Produce a deterministic synthetic capture."""
-    import random
     rng = random.Random(seed)
-
     packets: List[Packet] = []
     base = datetime(2026, 1, 1, 12, 0, 0)
-
-    http_paths = ["/index.html", "/login", "/api/data", "/search?q=test", "/admin"]
-    dns_names = ["example.com", "lab.local", "google.com", "github.com", "update.microsoft.com"]
 
     for i in range(count):
         ts = base + timedelta(milliseconds=rng.randint(0, 5000) + i * 120)
@@ -95,20 +125,22 @@ def generate_packets(count: int = 25, seed: int = 42) -> List[Packet]:
             src_port = rng.choice([80, 443, 8080])
             dst_port = rng.randint(1024, 65535)
             length = rng.randint(60, 1500)
-            path = _rand_choice(http_paths, rng)
-            info = f"GET {path} HTTP/1.1" if src_port in (80, 8080) else f"HTTP {rng.choice([200, 301, 404])} OK"
+            path = _rand_choice(HTTP_PATHS, rng)
+            info = (f"GET {path} HTTP/1.1" if src_port in (80, 8080)
+                    else f"HTTP {rng.choice([200, 301, 404])} OK")
         elif roll < 0.40:
             proto = "DNS"
             src_port = rng.randint(1024, 65535)
             dst_port = 53
             length = rng.randint(40, 120)
-            info = f"Standard query {rng.choice(dns_names)} A"
+            info = f"Standard query {_rand_choice(DNS_NAMES, rng)} A"
         elif roll < 0.55:
             proto = "TCP"
             src_port = rng.randint(1024, 65535)
             dst_port = rng.choice([22, 80, 443, 3389])
             length = rng.randint(40, 60)
-            info = f"{rng.choice(['SYN', 'SYN,ACK', 'ACK', 'FIN,ACK'])} {src_port}>{dst_port}"
+            info = (f"{rng.choice(['SYN', 'SYN,ACK', 'ACK', 'FIN,ACK'])} "
+                    f"{src_port}>{dst_port}")
         elif roll < 0.65:
             proto = "UDP"
             src_port = rng.randint(1024, 65535)
@@ -131,183 +163,248 @@ def generate_packets(count: int = 25, seed: int = 42) -> List[Packet]:
         raw = build_raw_frame(src_mac, dst_mac, src_ip, dst_ip, proto,
                               src_port, dst_port, info.encode())
         packets.append(Packet(
-            number=i + 1,
-            timestamp=ts,
-            src_mac=src_mac,
-            dst_mac=dst_mac,
-            eth_type="IPv4",
-            src_ip=src_ip,
-            dst_ip=dst_ip,
-            protocol=proto,
-            src_port=src_port,
-            dst_port=dst_port,
-            length=length,
-            info=info,
-            raw=raw,
+            number=i + 1, timestamp=ts, src_mac=src_mac, dst_mac=dst_mac,
+            eth_type="IPv4", src_ip=src_ip, dst_ip=dst_ip,
+            protocol=proto, src_port=src_port, dst_port=dst_port,
+            length=length, info=info, raw=raw,
         ))
 
     return packets
 
 
-def build_raw_frame(src_mac, dst_mac, src_ip, dst_ip, proto, src_port,
-                    dst_port, payload: bytes) -> bytes:
-    """Build a minimal but structurally valid Ethernet frame (for pcap export)."""
-    # Ethernet header (14 bytes)
-    dst = bytes.fromhex(dst_mac.replace(":", ""))
-    src = bytes.fromhex(src_mac.replace(":", ""))
-    eth_type = b"\x08\x00"  # IPv4
-    eth = dst + src + eth_type
-
-    # IPv4 header (20 bytes, no options)
-    ihl_ver = 0x45
-    dscp_ecn = 0x00
-    total_len = 20 + 20 + len(payload)  # ip + tcp/udp + payload
-    identification = 0x0001
-    flags_frag = 0x0000
-    ttl = 64
-    if proto == "TCP":
-        protocol = 6
-    elif proto == "UDP":
-        protocol = 17
-    else:
-        protocol = 6  # HTTP/DNS ride over TCP/UDP; use TCP here for framing
-    hdr_checksum = 0x0000
-    src_ip_bytes = bytes(int(x) for x in src_ip.split("."))
-    dst_ip_bytes = bytes(int(x) for x in dst_ip.split("."))
-    ip_hdr = struct.pack("!BBHHHBBH4s4s",
-                         ihl_ver, dscp_ecn, total_len, identification,
-                         flags_frag, ttl, protocol, hdr_checksum,
-                         src_ip_bytes, dst_ip_bytes)
-
-    # Transport header (TCP 20 bytes or UDP 8 bytes)
-    if proto == "UDP":
-        udp_hdr = struct.pack("!HHHH", src_port or 0, dst_port or 0,
-                              8 + len(payload), 0x0000)
-        transport = udp_hdr
-    else:
-        tcp_hdr = struct.pack("!HHIIHHHHH",
-                              src_port or 0, dst_port or 0,
-                              0, 0,  # seq, ack
-                              0x5000,  # data offset + reserved
-                              0x0010,  # flags (ACK)
-                              8192, 0, 0)  # window, checksum, urgent
-        transport = tcp_hdr
-
-    return eth + ip_hdr + transport + payload
-
-
-# ---------------------------------------------------------------------------
-# pcap export
-# ---------------------------------------------------------------------------
-
-PCAP_MAGIC = 0xA1B2C3D4  # little-endian, microsecond
-
-
 def write_pcap(path: str, packets: List[Packet]) -> None:
-    """Write packets to a pcap file readable by Wireshark/tcpdump.
-
-    Args:
-        path: Output file path (will be created/overwritten).
-        packets: List of :class:`Packet` objects to write.
-
-    The output uses the standard pcap magic number (0xA1B2C3D4, little-endian,
-    microsecond timestamps) and link-layer type 1 (Ethernet), so it can be
-    opened in real Wireshark or analyzed with tcpdump/tshark.
-    """
+    """Write packets to a pcap file readable by Wireshark/tcpdump."""
     with open(path, "wb") as f:
-        # Global header
-        f.write(struct.pack("<IHHiIII", PCAP_MAGIC, 2, 4, 0, 0, 65535, 1))
+        f.write(struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))
         for p in packets:
             ts_sec = int(p.timestamp.timestamp())
             ts_usec = p.timestamp.microsecond
-            incl_len = len(p.raw)
-            orig_len = len(p.raw)
-            f.write(struct.pack("<IIII", ts_sec, ts_usec, incl_len, orig_len))
+            f.write(struct.pack("<IIII", ts_sec, ts_usec,
+                                len(p.raw), len(p.raw)))
             f.write(p.raw)
 
 
 # ---------------------------------------------------------------------------
-# Display
+# Challenge: DNS Tunneling Detection
 # ---------------------------------------------------------------------------
 
-def print_table(packets: List[Packet]) -> None:
-    header = (f"{'No.':<5} {'Time':<12} {'Source':<18} {'Destination':<18} "
-              f"{'Proto':<8} {'Length':<7} Info")
-    print(header)
-    print("-" * len(header))
-    prev: Optional[Packet] = None
-    for p in packets:
-        ts = p.timestamp.strftime("%H:%M:%S.%f")[:-3]
-        src = f"{p.src_ip}:{p.src_port}" if p.src_port else p.src_ip
-        dst = f"{p.dst_ip}:{p.dst_port}" if p.dst_port else p.dst_ip
-        print(f"{p.number:<5} {ts:<12} {src:<18} {dst:<18} "
-              f"{p.protocol:<8} {p.length:<7} {p.info}")
-        prev = p
+class DNSTunnelingChallenge(Challenge):
+    """Detect DNS tunneling by finding abnormally large DNS queries."""
+
+    def __init__(self):
+        super().__init__(
+            id="wireshark-dns-01",
+            title="DNS Tunneling Detection",
+            category="network",
+            module="wireshark",
+            description=("Analyze DNS traffic for abnormally large queries that "
+                         "indicate data exfiltration via DNS tunneling."),
+            vulnerability="dns_tunneling",
+            difficulty="easy",
+            track="network-security",
+            steps=[
+                {"description": "Generate a capture with DNS packets",
+                 "command": "wireshark --packets 40",
+                 "notes": "Generate ~40 packets including DNS traffic"},
+                {"description": "Filter to DNS protocol",
+                 "command": "list proto==DNS",
+                 "notes": "Show only DNS packets"},
+                {"description": "Look for queries with unusually long names",
+                 "command": "list",
+                 "notes": "DNS queries with very long subdomains may be tunneling"},
+                {"description": "Identify the suspicious domain",
+                 "command": "",
+                 "notes": "The domain with the longest subdomain is tunneling data"},
+            ],
+            ai_enabled=True,
+            requires_online=False,
+        )
+        self._target_domain = None
+
+    def generate(self) -> dict:
+        """Generate a capture with a DNS tunneling packet."""
+        rng = random.Random(42)
+        packets = generate_packets(count=40, seed=rng.randint(0, 9999))
+
+        tunneling_domain = ("a8f3b2c1d4e5f6a7b8c9d0e1f2a3b4c5."
+                            "exfiltrate.example.com")
+        suspicious = Packet(
+            number=len(packets) + 1,
+            timestamp=datetime(2026, 1, 1, 12, 0, 30),
+            src_mac="00:1a:2b:3c:4d:5e",
+            dst_mac="00:1a:2b:3c:4d:5f",
+            eth_type="IPv4",
+            src_ip="192.168.1.50",
+            dst_ip="8.8.8.8",
+            protocol="DNS",
+            src_port=54321,
+            dst_port=53,
+            length=100 + len(tunneling_domain),
+            info=f"Standard query {tunneling_domain} A",
+            raw=b"",
+        )
+        packets.append(suspicious)
+        self._target_domain = tunneling_domain
+
+        pcap_path = CAPTURES_DIR / "dns_tunnel.pcap"
+        write_pcap(str(pcap_path), packets)
+
+        return {
+            "pcap_file": str(pcap_path),
+            "total_packets": len(packets),
+            "target_domain": tunneling_domain,
+            "hint": ("Look for DNS queries with unusually long subdomain names "
+                     "that encode data."),
+        }
+
+    def verify(self, submitted_answer: str) -> ChallengeResult:
+        expected = self._target_domain
+        correct = submitted_answer.strip().lower() == expected.lower()
+        if correct:
+            feedback = (f"Correct! The domain {expected} contains encoded data "
+                        f"in its subdomain - classic DNS tunneling.")
+        else:
+            feedback = ("Incorrect. The tunneling domain has an unusually long "
+                        f"subdomain encoding data. Look for domains with "
+                        f"high-entropy strings.")
+        return ChallengeResult(
+            challenge_id=self.id,
+            submitted_answer=submitted_answer,
+            correct=correct,
+            feedback=feedback,
+        )
 
 
-def filter_packets(packets: List[Packet], expr: str) -> List[Packet]:
-    """Filter packets by a small display-filter expression.
-
-    Supported terms (space-separated, joined with ``and``):
-        proto==HTTP   — match protocol
-        ip==1.2.3.4   — match source or destination IP
-        port==80      — match source or destination port
-
-    Args:
-        packets: List of :class:`Packet` objects.
-        expr: Filter expression string.
-
-    Returns:
-        List of packets matching all terms.
-    """
-    expr = expr.strip()
-    results = []
-    for p in packets:
-        ok = True
-        for term in expr.split(" and "):
-            term = term.strip()
-            if term.startswith("proto=="):
-                val = term.split("==", 1)[1]
-                ok = ok and p.protocol == val
-            elif term.startswith("ip=="):
-                val = term.split("==", 1)[1]
-                ok = ok and (p.src_ip == val or p.dst_ip == val)
-            elif term.startswith("port=="):
-                val = int(term.split("==", 1)[1])
-                ok = ok and (p.src_port == val or p.dst_port == val)
-            else:
-                ok = False  # unknown filter
-        if ok:
-            results.append(p)
-    return results
+registry.register(DNSTunnelingChallenge())
 
 
-def follow_stream(packets: List[Packet], stream_id: int) -> None:
-    """Show a simulated TCP stream conversation (demo only)."""
-    print(f"=== TCP Stream {stream_id} (simulated) ===")
-    for p in packets:
-        if p.protocol in ("HTTP", "TCP"):
-            print(f"[{p.number}] {p.src_ip}:{p.src_port} -> {p.dst_ip}:{p.dst_port}  {p.info}")
+# ---------------------------------------------------------------------------
+# Challenge: Port Scan Detection
+# ---------------------------------------------------------------------------
+
+class PortScanChallenge(Challenge):
+    """Detect port scanning by finding many connection attempts to different ports."""
+
+    def __init__(self):
+        super().__init__(
+            id="wireshark-port-01",
+            title="Port Scan Detection",
+            category="network",
+            module="wireshark",
+            description=("Identify port scanning by analyzing connection attempts "
+                         "to multiple ports from a single source."),
+            vulnerability="port_scan",
+            difficulty="medium",
+            track="network-security",
+            steps=[
+                {"description": "Generate a capture with TCP packets",
+                 "command": "wireshark --packets 60",
+                 "notes": "Generate packets including TCP SYN scans"},
+                {"description": "Filter to TCP protocol",
+                 "command": "list proto==TCP",
+                 "notes": "Show only TCP packets"},
+                {"description": "Look for one source IP connecting to many ports",
+                 "command": "list",
+                 "notes": "A single source IP hitting many different ports"},
+                {"description": "Identify the scanning source IP",
+                 "command": "",
+                 "notes": "The IP making the most connections to different ports"},
+            ],
+            ai_enabled=True,
+            requires_online=False,
+        )
+        self._scanner_ip = None
+
+    def generate(self) -> dict:
+        """Generate a capture with a port scan."""
+        rng = random.Random(99)
+        packets = generate_packets(count=60, seed=rng.randint(0, 9999))
+
+        scanner_ip = "10.0.0.99"
+        target_ip = "192.168.1.10"
+        base_ts = datetime(2026, 1, 1, 12, 0, 30)
+        for i, port in enumerate([22, 23, 25, 53, 80, 443, 3389, 8080, 3306, 5432]):
+            pkt = Packet(
+                number=len(packets) + 1,
+                timestamp=base_ts + timedelta(seconds=i),
+                src_mac="aa:bb:cc:dd:ee:ff",
+                dst_mac="00:1a:2b:3c:4d:5f",
+                eth_type="IPv4",
+                src_ip=scanner_ip,
+                dst_ip=target_ip,
+                protocol="TCP",
+                src_port=rng.randint(1024, 65535),
+                dst_port=port,
+                length=60,
+                info=f"SYN {rng.randint(1024, 65535)}>{port}",
+                raw=b"",
+            )
+            packets.append(pkt)
+        self._scanner_ip = scanner_ip
+
+        pcap_path = CAPTURES_DIR / "port_scan.pcap"
+        write_pcap(str(pcap_path), packets)
+
+        return {
+            "pcap_file": str(pcap_path),
+            "total_packets": len(packets),
+            "target_ip": target_ip,
+            "hint": ("Look for a single source IP making SYN connections to "
+                     "many different ports."),
+        }
+
+    def verify(self, submitted_answer: str) -> ChallengeResult:
+        expected = self._scanner_ip
+        correct = submitted_answer.strip() == expected
+        if correct:
+            feedback = (f"Correct! {expected} is scanning multiple ports - "
+                        f"classic port scan behavior.")
+        else:
+            feedback = ("Incorrect. Look for one IP making connections to many "
+                        f"different ports in a short time.")
+        return ChallengeResult(
+            challenge_id=self.id,
+            submitted_answer=submitted_answer,
+            correct=correct,
+            feedback=feedback,
+        )
+
+
+registry.register(PortScanChallenge())
 
 
 # ---------------------------------------------------------------------------
 # Interactive shell
 # ---------------------------------------------------------------------------
 
-import cmd  # noqa: E402
-import shlex  # noqa: E402
-
 class WiresharkShell(cmd.Cmd):
-    intro = "=== cyberlab Wireshark simulator (offline) ===\nType 'help' or '?' to list commands. Type 'quit' to exit.\n"
+    intro = "=== cyberterminal Wireshark simulator (offline) ===\n"             "Type 'help' or '?' to list commands. Type 'quit' to exit.\n"
     prompt = "wireshark> "
 
-    def __init__(self, packets: List[Packet]) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.packets = packets
-        self.filtered = list(packets)
+        self.packets: List[Packet] = []
+        self.filtered: List[Packet] = []
+        self.current_challenge: Optional[Challenge] = None
+
+    def do_scan(self, arg: str) -> None:
+        """Generate a packet capture.
+
+        usage: scan [--packets N]
+        """
+        parser = argparse.ArgumentParser(prog="scan", add_help=False)
+        parser.add_argument("--packets", type=int, default=25)
+        try:
+            args = parser.parse_args(shlex.split(arg))
+        except SystemExit:
+            return
+        self.packets = generate_packets(count=args.packets)
+        self.filtered = list(self.packets)
+        print(f"Generated {len(self.packets)} simulated packets.")
+        self._print_table(self.filtered)
 
     def do_list(self, arg: str) -> None:
-        """List packets. Optionally with a display filter.
+        """List packets with optional display filter.
 
         usage: list
         usage: list proto==HTTP
@@ -316,41 +413,77 @@ class WiresharkShell(cmd.Cmd):
         usage: list proto==HTTP and port==80
         """
         if arg:
-            self.filtered = filter_packets(self.packets, arg)
-            print(f"Filter applied: {arg} -> {len(self.filtered)} packet(s)")
+            self.filtered = self._apply_filter(arg)
+            print(f"Filter '{arg}': {len(self.filtered)} packet(s)")
         else:
             self.filtered = list(self.packets)
-        print_table(self.filtered)
+        self._print_table(self.filtered)
 
-    def do_export(self, arg: str) -> None:
-        """Export current capture to a pcap file.
+    def do_challenge(self, arg: str) -> None:
+        """Start a challenge.
 
-        usage: export capture.pcap
+        usage: challenge <id>
+        usage: challenge list
         """
-        if not arg:
-            print("usage: export <file.pcap>")
+        if not arg or arg == "list":
+            print("Available challenges:")
+            for c in registry.list_all():
+                if not c.requires_network():
+                    print(f"  {c.id}: {c.title}")
             return
-        write_pcap(arg, self.filtered)
-        print(f"Exported {len(self.filtered)} packets to {arg}")
+        challenge = registry.get(arg)
+        if not challenge:
+            print(f"Unknown challenge: {arg}")
+            return
+        if challenge.requires_network():
+            print(f"Challenge '{challenge.id}' requires network access.")
+            return
+        self.current_challenge = challenge
+        data = challenge.generate()
+        print(f"Challenge: {challenge.title}")
+        print(f"Description: {challenge.description}")
+        print(f"Difficulty: {challenge.difficulty}")
+        print()
+        print("Generated capture:")
+        print(f"  PCAP file: {data.get('pcap_file', 'N/A')}")
+        print(f"  Total packets: {data.get('total_packets', 'N/A')}")
+        print()
+        print(f"Hint: {data.get('hint', 'N/A')}")
+        print()
+        print("Use 'submit <answer>' to submit your answer.")
 
-    def do_follow(self, arg: str) -> None:
-        """Follow a simulated TCP stream.
+    def do_submit(self, arg: str) -> None:
+        """Submit an answer to the current challenge.
 
-        usage: follow <stream_id>
+        usage: submit <answer>
         """
-        try:
-            sid = int(arg)
-        except ValueError:
-            print("usage: follow <stream_id>")
+        if not self.current_challenge:
+            print("No active challenge. Use 'challenge <id>' first.")
             return
-        follow_stream(self.filtered, sid)
+        result = self.current_challenge.verify(arg)
+        if result.correct:
+            print(f"Correct! {result.feedback}")
+        else:
+            print(f"Incorrect. {result.feedback}")
 
-    def do_count(self, arg: str) -> None:
-        """Count packets by protocol."""
-        from collections import Counter
-        c = Counter(p.protocol for p in self.filtered)
-        for proto, n in c.most_common():
-            print(f"{proto:<8} {n}")
+    def do_hint(self, arg: str) -> None:
+        """Get a hint for the current challenge.
+
+        usage: hint
+        """
+        if not self.current_challenge:
+            print("No active challenge.")
+            return
+        print(f"Hint: {self.current_challenge.get_hint()}")
+
+    def do_packets(self, arg: str) -> None:
+        """Show current packet count."""
+        print(f"Current capture: {len(self.packets)} packets")
+
+    def do_clear(self, arg: str) -> None:
+        """Clear the screen."""
+        import os
+        os.system("cls" if __import__("sys").platform == "win32" else "clear")
 
     def do_quit(self, arg: str) -> None:
         print("Goodbye.")
@@ -359,113 +492,43 @@ class WiresharkShell(cmd.Cmd):
     def do_exit(self, arg: str) -> None:
         return self.do_quit(arg)
 
+    def emptyline(self) -> None:
+        pass
+
+    def _apply_filter(self, expr: str) -> List[Packet]:
+        results = []
+        for p in self.packets:
+            ok = True
+            for term in expr.split(" and "):
+                term = term.strip()
+                if term.startswith("proto=="):
+                    val = term.split("==", 1)[1]
+                    ok = ok and p.protocol == val
+                elif term.startswith("ip=="):
+                    val = term.split("==", 1)[1]
+                    ok = ok and (p.src_ip == val or p.dst_ip == val)
+                elif term.startswith("port=="):
+                    val = int(term.split("==", 1)[1])
+                    ok = ok and (p.src_port == val or p.dst_port == val)
+                else:
+                    ok = False
+            if ok:
+                results.append(p)
+        return results
+
+    def _print_table(self, packets: List[Packet]) -> None:
+        print(f"{'No.':<5} {'Time':<12} {'Source':<18} {'Destination':<18} "
+              f"{'Proto':<8} {'Length':<7} Info")
+        print("-" * 70)
+        for p in packets:
+            ts = p.timestamp.strftime("%H:%M:%S.%f")[:-3]
+            src = f"{p.src_ip}:{p.src_port}" if p.src_port else p.src_ip
+            dst = f"{p.dst_ip}:{p.dst_port}" if p.dst_port else p.dst_ip
+            print(f"{p.number:<5} {ts:<12} {src:<18} {dst:<18} "
+                  f"{p.protocol:<8} {p.length:<7} {p.info}")
+
 
 def run_wireshark(args: argparse.Namespace) -> int:
-    packets = generate_packets(count=args.packets)
-    print(f"Generated {len(packets)} simulated packets (offline).")
-    print_table(packets)
-    if args.export:
-        write_pcap(args.export, packets)
-        print(f"Exported to {args.export}")
-        # When exporting only, show the table and exit without entering the shell.
-        if not sys.stdin.isatty():
-            return 0
-    # Drop into interactive shell for hands-on learning.
-    shell = WiresharkShell(packets)
+    shell = WiresharkShell()
     shell.cmdloop()
     return 0
-
-
-# Self-register with the lab registry so `cyberlab labs` / `cyberlab run` work.
-from src.core import Scenario, lab_registry as _lab_registry  # noqa: E402
-from src.core.track import registry as _track_registry  # noqa: E402
-from src.core.track import Tutorial as _Tutorial  # noqa: F401
-
-
-def _wireshark_lab() -> int:
-    return run_wireshark(argparse.Namespace(packets=25, export=None))
-
-
-_lab_registry.register(
-    Scenario(
-        id="wireshark-01",
-        title="Packet capture analysis",
-        description="Inspect, filter, and export a simulated Ethernet/IP/TCP/UDP/"
-        "DNS capture, Wireshark-style, offline.",
-        module="wireshark",
-        run=_wireshark_lab,
-        tags=["network", "packets", "wireshark", "offline"],
-    )
-)
-
-# Register wireshark tutorials with the track registry
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="net-dns-01",
-        title="DNS Traffic Analysis",
-        category="network",
-        module="wireshark",
-        description="Analyze simulated DNS queries for signs of DNS tunneling or exfiltration.",
-        vulnerability="dns_tunneling",
-        difficulty="easy",
-        track="network-security",
-        flag="FLAG{dns_analysis_complete}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="net-tcp-01",
-        title="TCP Three-Way Handshake Analysis",
-        category="network",
-        module="wireshark",
-        description="Analyze simulated TCP connection establishment (SYN, SYN-ACK, ACK).",
-        vulnerability="tcp_handshake",
-        difficulty="easy",
-        track="network-security",
-        flag="FLAG{tcp_handshake_analysis}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="net-port-scan-01",
-        title="Port Scan Detection",
-        category="network",
-        module="wireshark",
-        description="Identify a port scan by analyzing connection attempts to multiple ports.",
-        vulnerability="port_scan",
-        difficulty="medium",
-        track="network-security",
-        flag="FLAG{port_scan_detected}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="net-arp-01",
-        title="ARP Spoofing Detection",
-        category="network",
-        module="wireshark",
-        description="Detect ARP spoofing by identifying duplicate MAC-to-IP mappings.",
-        vulnerability="arp_spoofing",
-        difficulty="hard",
-        track="network-security",
-        flag="FLAG{arp_spoof_detected}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="net-icmp-01",
-        title="ICMP Tunneling Detection",
-        category="network",
-        module="wireshark",
-        description="Spot ICMP tunneling by analyzing unusual ICMP payload sizes.",
-        vulnerability="icmp_tunneling",
-        difficulty="hard",
-        track="network-security",
-        flag="FLAG{icmp_tunnel_detected}",
-        ai_enabled=True,
-    )
-)

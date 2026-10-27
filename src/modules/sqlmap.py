@@ -171,7 +171,6 @@ _track_registry.register_tutorial(
         vulnerability="sql_injection_auto",
         difficulty="medium",
         track="web-security",
-        flag="FLAG{sqlmap_detected_sqli}",
         ai_enabled=True,
     )
 )

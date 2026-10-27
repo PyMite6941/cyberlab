@@ -258,7 +258,6 @@ _track_registry.register_tutorial(
         vulnerability="information_disclosure",
         difficulty="easy",
         track="osint",
-        flag="FLAG{osint_domain_done}",
         ai_enabled=True,
     )
 )
@@ -272,7 +271,6 @@ _track_registry.register_tutorial(
         vulnerability="information_disclosure",
         difficulty="easy",
         track="osint",
-        flag="FLAG{osint_username_done}",
         ai_enabled=True,
     )
 )

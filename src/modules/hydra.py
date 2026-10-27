@@ -198,7 +198,6 @@ _track_registry.register_tutorial(
         vulnerability="weak_credentials",
         difficulty="medium",
         track="authentication-security",
-        flag="FLAG{hydra_cracked}",
         ai_enabled=True,
     )
 )

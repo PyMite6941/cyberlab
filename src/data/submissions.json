@@ -2,159 +2,133 @@
   "submissions": [
     {
       "tutorial_id": "auth-password-spray-01",
-      "flag": "FLAG{spray_detected}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.478082+00:00"
+      "timestamp": "2026-10-26T11:27:14.008689+00:00"
     },
     {
       "tutorial_id": "auth-session-hijack-01",
-      "flag": "FLAG{session_hijacked}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.483839+00:00"
+      "timestamp": "2026-10-26T11:27:14.016048+00:00"
     },
     {
       "tutorial_id": "auth-mfa-bypass-01",
-      "flag": "FLAG{mfa_bypassed}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.487885+00:00"
+      "timestamp": "2026-10-26T11:27:14.018875+00:00"
     },
     {
       "tutorial_id": "web-sqli-01",
-      "flag": "FLAG{sqli_basic_success}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.491507+00:00"
+      "timestamp": "2026-10-26T11:27:14.021252+00:00"
     },
     {
       "tutorial_id": "web-xss-01",
-      "flag": "FLAG{xss_reflected_success}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.499063+00:00"
+      "timestamp": "2026-10-26T11:27:14.026192+00:00"
     },
     {
       "tutorial_id": "web-idor-01",
-      "flag": "FLAG{idor_access_granted}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.502575+00:00"
+      "timestamp": "2026-10-26T11:27:14.031001+00:00"
     },
     {
       "tutorial_id": "web-auth-bypass-01",
-      "flag": "FLAG{admin_session_hijack}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.505701+00:00"
+      "timestamp": "2026-10-26T11:27:14.034389+00:00"
     },
     {
       "tutorial_id": "web-file-upload-01",
-      "flag": "FLAG{upload_bypass_success}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.509281+00:00"
+      "timestamp": "2026-10-26T11:27:14.038522+00:00"
     },
     {
       "tutorial_id": "auth-hydra-01",
-      "flag": "FLAG{hydra_cracked}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.521227+00:00"
+      "timestamp": "2026-10-26T11:27:14.042534+00:00"
     },
     {
       "tutorial_id": "web-nikto-01",
-      "flag": "FLAG{nikto_scan_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.525282+00:00"
+      "timestamp": "2026-10-26T11:27:14.047470+00:00"
     },
     {
       "tutorial_id": "net-nmap-01",
-      "flag": "FLAG{nmap_scan_complete}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.529148+00:00"
+      "timestamp": "2026-10-26T11:27:14.060659+00:00"
     },
     {
       "tutorial_id": "net-service-enum-01",
-      "flag": "FLAG{service_enum_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.534022+00:00"
+      "timestamp": "2026-10-26T11:27:14.064243+00:00"
     },
     {
       "tutorial_id": "net-os-fingerprint-01",
-      "flag": "FLAG{os_fingerprinted}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.537672+00:00"
+      "timestamp": "2026-10-26T11:27:14.068822+00:00"
     },
     {
       "tutorial_id": "siem-brute-force-01",
-      "flag": "FLAG{brute_force_found}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.541615+00:00"
+      "timestamp": "2026-10-26T11:27:14.072043+00:00"
     },
     {
       "tutorial_id": "siem-port-scan-01",
-      "flag": "FLAG{scan_in_logs}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.545710+00:00"
+      "timestamp": "2026-10-26T11:27:14.076356+00:00"
     },
     {
       "tutorial_id": "siem-priv-escalation-01",
-      "flag": "FLAG{priv_esc_detected}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.551380+00:00"
+      "timestamp": "2026-10-26T11:27:14.080476+00:00"
     },
     {
       "tutorial_id": "web-sqlmap-01",
-      "flag": "FLAG{sqlmap_detected_sqli}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.554956+00:00"
+      "timestamp": "2026-10-26T11:27:14.083870+00:00"
     },
     {
       "tutorial_id": "net-dns-01",
-      "flag": "FLAG{dns_analysis_complete}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.559178+00:00"
+      "timestamp": "2026-10-26T11:27:14.087225+00:00"
     },
     {
       "tutorial_id": "net-tcp-01",
-      "flag": "FLAG{tcp_handshake_analysis}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.562563+00:00"
+      "timestamp": "2026-10-26T11:27:14.090220+00:00"
     },
     {
       "tutorial_id": "net-port-scan-01",
-      "flag": "FLAG{port_scan_detected}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.568403+00:00"
+      "timestamp": "2026-10-26T11:27:14.093272+00:00"
     },
     {
       "tutorial_id": "net-arp-01",
-      "flag": "FLAG{arp_spoof_detected}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.574487+00:00"
+      "timestamp": "2026-10-26T11:27:14.097423+00:00"
     },
     {
       "tutorial_id": "net-icmp-01",
-      "flag": "FLAG{icmp_tunnel_detected}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.579949+00:00"
+      "timestamp": "2026-10-26T11:27:14.099829+00:00"
     },
     {
       "tutorial_id": "web-cookie-01",
-      "flag": "FLAG{cookie_scan_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.597215+00:00"
+      "timestamp": "2026-10-26T11:27:14.102561+00:00"
     },
     {
       "tutorial_id": "web-webscan-01",
-      "flag": "FLAG{webscan_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.607379+00:00"
+      "timestamp": "2026-10-26T11:27:14.109142+00:00"
     },
     {
       "tutorial_id": "osint-domain-01",
-      "flag": "FLAG{osint_domain_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.613867+00:00"
+      "timestamp": "2026-10-26T11:27:14.113191+00:00"
     },
     {
       "tutorial_id": "osint-username-01",
-      "flag": "FLAG{osint_username_done}",
       "correct": true,
-      "timestamp": "2026-10-26T10:40:58.618426+00:00"
+      "timestamp": "2026-10-26T11:27:14.116504+00:00"
     }
   ]
 }

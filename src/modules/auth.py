@@ -197,7 +197,6 @@ _track_registry.register_tutorial(
         vulnerability="password_spraying",
         difficulty="medium",
         track="authentication-security",
-        flag="FLAG{spray_detected}",
         ai_enabled=True,
     )
 )
@@ -211,7 +210,6 @@ _track_registry.register_tutorial(
         vulnerability="session_hijacking",
         difficulty="medium",
         track="authentication-security",
-        flag="FLAG{session_hijacked}",
         ai_enabled=True,
     )
 )
@@ -225,7 +223,6 @@ _track_registry.register_tutorial(
         vulnerability="mfa_bypass",
         difficulty="hard",
         track="authentication-security",
-        flag="FLAG{mfa_bypassed}",
         ai_enabled=True,
     )
 )

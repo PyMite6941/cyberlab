@@ -237,7 +237,6 @@ _track_registry.register_tutorial(
         vulnerability="brute_force",
         difficulty="easy",
         track="siem-logs",
-        flag="FLAG{brute_force_found}",
         ai_enabled=True,
     )
 )
@@ -251,7 +250,6 @@ _track_registry.register_tutorial(
         vulnerability="port_scan_logs",
         difficulty="medium",
         track="siem-logs",
-        flag="FLAG{scan_in_logs}",
         ai_enabled=True,
     )
 )
@@ -265,7 +263,6 @@ _track_registry.register_tutorial(
         vulnerability="privilege_escalation",
         difficulty="hard",
         track="siem-logs",
-        flag="FLAG{priv_esc_detected}",
         ai_enabled=True,
     )
 )

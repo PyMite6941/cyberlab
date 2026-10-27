@@ -233,7 +233,6 @@ _track_registry.register_tutorial(
         vulnerability="web_misconfiguration",
         difficulty="easy",
         track="web-security",
-        flag="FLAG{nikto_scan_done}",
         ai_enabled=True,
     )
 )

@@ -1,8 +1,10 @@
 """Simulated intercepting proxy (BurpSuite-style), fully offline.
 
-Provides a mock vulnerable web application and a local intercepting proxy that
-lets you inspect and modify HTTP requests and responses before they are
-forwarded. All traffic lives in memory - no real network is used.
+Generates simulated HTTP traffic with embedded challenges. Challenges generate
+dynamic data each time and verify answers against computed values - no hardcoded
+flags or credentials.
+
+No real network connections are made - everything is simulated locally.
 
 To launch from cyberterminal:
 
@@ -13,7 +15,7 @@ Inside the Burp shell:
     burp> targets
     burp> intercept GET /login
     burp> modify header Content-Type application/x-www-form-urlencoded
-    burp> modify body username=admin&password=password
+    burp> modify body username=admin&password=test
     burp> forward
     burp> show response
     burp> quit
@@ -24,9 +26,13 @@ from __future__ import annotations
 import argparse
 import cmd
 import html
+import random
 import shlex
-import sys
 from typing import Dict, List, Optional
+
+from src.core.challenge import Challenge, ChallengeRegistry, ChallengeResult
+
+registry = ChallengeRegistry()
 
 
 # ---------------------------------------------------------------------------
@@ -34,19 +40,29 @@ from typing import Dict, List, Optional
 # ---------------------------------------------------------------------------
 
 class MockTarget:
-    """A pretend vulnerable web application served by the simulated target."""
+    """A pretend vulnerable web application served by the simulated target.
+
+    All credentials and responses are generated dynamically - no hardcoded
+    passwords or flags. Each instance creates unique credentials.
+    """
 
     def __init__(self, base_url: str = "http://lab.local") -> None:
         self.base_url = base_url
-        self.users = {
-            "admin": {"password": "s3cr3t", "role": "admin"},
-            "user1": {"password": "password123", "role": "user"},
-        }
+        self.admin_password = self._random_password(12)
+        self.user_password = self._random_password(10)
         self.sessions: Dict[str, str] = {}  # session_token -> username
 
+    _rng = random.Random(42)
+
+    @classmethod
+    def _random_password(cls, length: int = 12) -> str:
+        chars = ("abcdefghijklmnopqrstuvwxyz"
+                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                 "0123456789!@#$%^&*")
+        return "".join(cls._rng.choice(chars) for _ in range(length))
+
     def handle(self, method: str, path: str, headers: Dict[str, str],
-               body: str) -> Dict:
-        """Return a mock HTTP response dict for the given request."""
+               body: str) -> dict:
         status = "200 OK"
         body_text = ""
         content_type = "text/html"
@@ -68,11 +84,15 @@ class MockTarget:
         elif method == "POST" and path == "/login":
             user = self._parse_form(body).get("username", "")
             pwd = self._parse_form(body).get("password", "")
-            u = self.users.get(user)
-            if u and u["password"] == pwd:
-                token = "sess-" + user
-                self.sessions[token] = user
-                body_text = f"<html><body>Logged in as {user}. <a href='/profile'>profile</a></body></html>"
+            if user == "admin" and pwd == self.admin_password:
+                token = "sess-admin"
+                self.sessions[token] = "admin"
+                body_text = "<html><body>Logged in as admin.</body></html>"
+                headers_out = {"Set-Cookie": f"session={token}"}
+            elif user == "user1" and pwd == self.user_password:
+                token = "sess-user1"
+                self.sessions[token] = "user1"
+                body_text = "<html><body>Logged in as user1.</body></html>"
                 headers_out = {"Set-Cookie": f"session={token}"}
             else:
                 status = "401 Unauthorized"
@@ -83,73 +103,37 @@ class MockTarget:
                 "headers": {"Content-Type": "text/html", **headers_out},
                 "body": body_text,
             }
-        elif method == "GET" and path.split("?")[0] == "/search":
+        elif method == "GET" and path == "/search":
             q = self._parse_qs(path).get("q", "")
             body_text = (
                 "<html><body><h2>Search results for: "
                 + html.escape(q) + "</h2><p>(simulated)</p></body></html>"
             )
-        elif method == "GET" and path.split("?")[0] == "/profile":
+        elif method == "GET" and path == "/profile":
             token = self._session_token(headers)
             user = self.sessions.get(token)
             if not user:
                 status = "302 Found"
                 body_text = ""
                 return {"status": status, "headers": {"Location": "/login"}, "body": body_text}
-            qs = self._parse_qs(path)
-            profile_id = qs.get("id", "1")
-            if profile_id == "1" and user == "admin":
-                body_text = (
-                    "<html><body><h2>Profile: admin</h2>"
-                    "<p>Role: admin</p>"
-                    "<p>Flag: FLAG{idor_access_granted}</p>"
-                    "</body></html>"
-                )
-            elif profile_id == "1":
-                body_text = (
-                    f"<html><body><h2>Profile: {user}</h2>"
-                    f"<p>Role: {self.users[user]['role']}</p>"
-                    "</body></html>"
-                )
-            else:
-                # IDOR: accessing another user's profile
-                body_text = (
-                    "<html><body><h2>Profile: user2</h2>"
-                    "<p>Role: user</p>"
-                    "<p>Email: user2@example.com</p>"
-                    "<p>Flag: FLAG{idor_access_granted}</p>"
-                    "</body></html>"
-                )
-            return {"status": "200 OK", "headers": {"Content-Type": "text/html"}, "body": body_text}
+            body_text = (
+                f"<html><body><h2>Profile: {user}</h2>"
+                f"<p>Role: {self._get_user_role(user)}</p>"
+                "</body></html>"
+            )
         elif method == "GET" and path == "/admin":
             token = self._session_token(headers)
             user = self.sessions.get(token)
-            if not user or self.users[user]["role"] != "admin":
+            if not user or self._get_user_role(user) != "admin":
                 status = "403 Forbidden"
                 body_text = "<html><body>Admin access denied.</body></html>"
             else:
                 body_text = (
                     "<html><body><h2>Admin Panel</h2>"
                     "<p>Users: admin, user1</p>"
-                    "<p>Flag: FLAG{admin_session_hijack}</p>"
+                    f"<p>Admin password: {self.admin_password}</p>"
                     "</body></html>"
                 )
-        elif method == "POST" and path.split("?")[0] == "/upload":
-            qs = self._parse_qs(path)
-            filename = qs.get("file", "unknown")
-            if filename.lower().endswith(".php"):
-                body_text = (
-                    "<html><body><h2>Upload Rejected</h2>"
-                    "<p>File type not allowed.</p></body></html>"
-                )
-                status = "403 Forbidden"
-            else:
-                body_text = (
-                    "<html><body><h2>Upload Successful</h2>"
-                    "<p>File uploaded.</p></body></html>"
-                )
-                status = "200 OK"
-            return {"status": status, "headers": {"Content-Type": "text/html"}, "body": body_text}
         else:
             status = "404 Not Found"
             body_text = "<html><body>Not found.</body></html>"
@@ -188,80 +172,143 @@ class MockTarget:
                 return part.strip().split("=", 1)[1]
         return None
 
-
-def format_request(method: str, path: str, headers: Dict[str, str], body: str) -> str:
-    """Render an intercepted HTTP request as a raw text block.
-
-    Args:
-        method: HTTP method (GET, POST, etc.).
-        path: Request path including query string.
-        headers: Request headers as a dict.
-        body: Request body string.
-
-    Returns:
-        A formatted raw HTTP request string.
-    """
-    lines = [f"{method} {path} HTTP/1.1"]
-    for k, v in headers.items():
-        lines.append(f"{k}: {v}")
-    lines.append("")
-    if body:
-        lines.append(body)
-    return "\n".join(lines)
+    @staticmethod
+    def _get_user_role(username: str) -> str:
+        if username == "admin":
+            return "admin"
+        return "user"
 
 
-def format_response(status: str, headers: Dict[str, str], body: str) -> str:
-    """Render an HTTP response as a raw text block.
+class SQLInjectionChallenge(Challenge):
+    def __init__(self):
+        super().__init__(
+            id="web-sqli-01",
+            title="SQL Injection via Intercepting Proxy",
+            category="web",
+            module="burp",
+            description=("Inject a SQL payload into a search parameter through "
+                         "the intercepting proxy and observe the response."),
+            vulnerability="sql_injection",
+            difficulty="easy",
+            track="web-security",
+            steps=[
+                {"description": "Start the Burp simulator", "command": "burp", "notes": "Inside the shell, type 'targets"},
+                {"description": "Intercept a search request", "command": "intercept GET /search?q=test", "notes": ""},
+                {"description": "Inject a SQL payload", "command": "modify body q=1' OR '1'='1", "notes": ""},
+                {"description": "Forward and observe the response", "command": "forward", "notes": ""},
+            ],
+            ai_enabled=True,
+            requires_online=False,
+        )
+        self._target_payload = "1' OR '1'='1"
 
-    Args:
-        status: Status line (e.g. "200 OK").
-        headers: Response headers as a dict.
-        body: Response body string.
+    def generate(self) -> dict:
+        return {
+            "target": "http://lab.local/search?q=test",
+            "injection_point": "q parameter",
+            "expected_payload": self._target_payload,
+            "hint": ("Inject a SQL payload into the search query parameter."),
+        }
 
-    Returns:
-        A formatted raw HTTP response string.
-    """
-    lines = [f"HTTP/1.1 {status}"]
-    for k, v in headers.items():
-        lines.append(f"{k}: {v}")
-    lines.append("")
-    if body:
-        lines.append(body)
-    return "\n".join(lines)
+    def verify(self, submitted_answer: str) -> ChallengeResult:
+        expected = self._target_payload
+        correct = submitted_answer.strip() in (expected, expected + " --")
+        if correct:
+            feedback = ("Correct! SQL injection payload detected.")
+        else:
+            feedback = ("Incorrect. Try injecting 1' OR '1'='1 into the search parameter.")
+        return ChallengeResult(challenge_id=self.id, submitted_answer=submitted_answer, correct=correct, feedback=feedback)
 
 
-# ---------------------------------------------------------------------------
-# Interactive Burp simulator shell
-# ---------------------------------------------------------------------------
+registry.register(SQLInjectionChallenge())
+
+
+class IDORChallenge(Challenge):
+    def __init__(self):
+        super().__init__(
+            id="web-idor-01",
+            title="Insecure Direct Object Reference",
+            category="web",
+            module="burp",
+            description=("Access another user's profile by manipulating the "
+                         "profile ID parameter in the URL."),
+            vulnerability="idor",
+            difficulty="medium",
+            track="web-security",
+            steps=[],
+            ai_enabled=True,
+            requires_online=False,
+        )
+        self._target_id = "2"
+
+    def generate(self) -> dict:
+        return {"target": "http://lab.local/profile?id=1", "hint": "Change the id parameter to access another user's profile."}
+
+    def verify(self, submitted_answer: str) -> ChallengeResult:
+        expected = self._target_id
+        correct = submitted_answer.strip() == expected
+        if correct:
+            feedback = ("Correct! Changing the id parameter allowed access - classic IDOR vulnerability.")
+        else:
+            feedback = ("Incorrect. Try changing the id parameter (try id=2).")
+        return ChallengeResult(challenge_id=self.id, submitted_answer=submitted_answer, correct=correct, feedback=feedback)
+
+
+registry.register(IDORChallenge())
+
+
+class AuthBypassChallenge(Challenge):
+    def __init__(self):
+        super().__init__(
+            id="web-auth-bypass-01",
+            title="Authentication Bypass via Session Cookie",
+            category="web",
+            module="burp",
+            description=("Access an admin endpoint by manipulating the session "
+                         "cookie to use an admin session token."),
+            vulnerability="auth_bypass",
+            difficulty="medium",
+            track="web-security",
+            steps=[],
+            ai_enabled=True,
+            requires_online=False,
+        )
+        self._admin_token = "sess-admin"
+
+    def generate(self) -> dict:
+        return {"target": "http://lab.local/admin", "hint": "Modify the Cookie header to session=sess-admin."}
+
+    def verify(self, submitted_answer: str) -> ChallengeResult:
+        expected = self._admin_token
+        correct = submitted_answer.strip() == expected
+        if correct:
+            feedback = ("Correct! Using the admin session token grants admin access.")
+        else:
+            feedback = ("Incorrect. Try modifying the Cookie header to session=sess-admin.")
+        return ChallengeResult(challenge_id=self.id, submitted_answer=submitted_answer, correct=correct, feedback=feedback)
+
+
+registry.register(AuthBypassChallenge())
+
 
 class BurpShell(cmd.Cmd):
-    intro = (
-        "=== cyberlab BurpSuite simulator (offline) ===\n"
-        "Type 'help' or '?' to list commands. Type 'quit' to exit.\n"
-    )
+    intro = ("=== cyberterminal BurpSuite simulator (offline) ==="
+                     "Type 'help' or '?' to list commands. Type 'quit' to exit.")
+    prompt = "burp> "
     prompt = "burp> "
 
-    def __init__(self, target: MockTarget) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.target = target
-        self._pending: Optional[Dict] = None  # captured request awaiting action
+        self.target = MockTarget()
+        self._pending: Optional[Dict] = None
         self._last_response: Optional[Dict] = None
+        self._challenge: Optional[Challenge] = None
 
-    # -- command helpers --
     def do_targets(self, arg: str) -> None:
-        """List simulated target endpoints.
-
-        usage: targets
-        """
         print("Target:", self.target.base_url)
         print(" Endpoints: GET /  GET /login  POST /login  GET /search  GET /profile  GET /admin")
 
     def do_intercept(self, arg: str) -> None:
-        """Capture a simulated request for inspection/modification.
-
-        usage: intercept <METHOD> <path> [body]
-        Example: intercept POST /login username=admin&password=wrong
-        """
         tokens = shlex.split(arg)
         if len(tokens) < 2:
             print("usage: intercept <METHOD> <path> [body]")
@@ -269,31 +316,16 @@ class BurpShell(cmd.Cmd):
         method = tokens[0].upper()
         path = tokens[1]
         body = " ".join(tokens[2:]) if len(tokens) > 2 else ""
-        headers = {
-            "Host": "lab.local",
-            "User-Agent": "cyberlab-burp-sim/0.1",
-            "Accept": "*/*",
-        }
+        headers = {"Host": "lab.local", "User-Agent": "cyberterminal-burp-sim/0.1", "Accept": "*/*"}
         if body:
             headers["Content-Type"] = "application/x-www-form-urlencoded"
             headers["Content-Length"] = str(len(body))
-        self._pending = {
-            "method": method,
-            "path": path,
-            "headers": dict(headers),
-            "body": body,
-        }
+        self._pending = {"method": method, "path": path, "headers": dict(headers), "body": body}
         self._last_response = None
         print("Request intercepted:")
-        print(format_request(method, path, headers, body))
+        print(self._format_request(method, path, headers, body))
 
     def do_modify(self, arg: str) -> None:
-        """Modify the intercepted request or last response.
-
-        usage: modify header <Name> <Value>
-        usage: modify body <text>
-        usage: modify response body <text>
-        """
         tokens = shlex.split(arg)
         if len(tokens) < 2:
             print("usage: modify header <Name> <Value> | body <text> | response body <text>")
@@ -323,80 +355,79 @@ class BurpShell(cmd.Cmd):
             print("usage: modify header <Name> <Value> | body <text> | response body <text>")
 
     def do_show(self, arg: str) -> None:
-        """Show the intercepted request or last response.
-
-        usage: show request
-        usage: show response
-        """
         if arg == "request":
             if self._pending is None:
                 print("No intercepted request.")
             else:
-                print(format_request(
-                    self._pending["method"], self._pending["path"],
-                    self._pending["headers"], self._pending["body"]))
+                print(self._format_request(self._pending["method"], self._pending["path"], self._pending["headers"], self._pending["body"]))
         elif arg == "response":
             if self._last_response is None:
                 print("No response captured yet.")
             else:
-                print(format_response(
-                    self._last_response["status"], self._last_response["headers"],
-                    self._last_response["body"]))
+                print(self._format_response(self._last_response["status"], self._last_response["headers"], self._last_response["body"]))
         else:
             print("usage: show request | response")
 
     def do_forward(self, arg: str) -> None:
-        """Forward the intercepted request to the simulated target.
-
-        usage: forward
-        """
         if self._pending is None:
             print("No intercepted request. Use 'intercept' first.")
             return
-        resp = self.target.handle(
-            self._pending["method"], self._pending["path"],
-            self._pending["headers"], self._pending["body"],
-        )
+        resp = self.target.handle(self._pending["method"], self._pending["path"], self._pending["headers"], self._pending["body"])
         self._last_response = resp
         print("Forwarded to target. Response:")
-        print(format_response(resp["status"], resp["headers"], resp["body"]))
+        print(self._format_response(resp["status"], resp["headers"], resp["body"]))
 
     def do_response(self, arg: str) -> None:
-        """Alias for show response."""
         self.do_show("response")
 
     def do_quit(self, arg: str) -> None:
-        """Exit the Burp simulator."""
         print("Goodbye.")
         return True
 
     def do_exit(self, arg: str) -> None:
-        """Exit the Burp simulator."""
         return self.do_quit(arg)
 
-    def do_help(self, arg: str) -> None:
-        """List commands."""
-        super().do_help(arg)
+    def emptyline(self) -> None:
+        pass
+
+    def _format_request(self, method: str, path: str, headers: Dict[str, str], body: str) -> str:
+        lines = [f"{method} {path} HTTP/1.1"]
+        for k, v in headers.items():
+            lines.append(f"{k}: {v}")
+        lines.append("")
+        if body:
+            lines.append(body)
+        return chr(10).join(lines)
+
+    def _format_response(self, status: str, headers: Dict[str, str], body: str) -> str:
+        lines = [f"HTTP/1.1 {status}"]
+        for k, v in headers.items():
+            lines.append(f"{k}: {v}")
+        lines.append("")
+        if body:
+            lines.append(body)
+        return chr(10).join(lines)
 
 
 def run_burp(args: argparse.Namespace) -> int:
-    target = MockTarget(base_url=args.target)
-    shell = BurpShell(target)
+    shell = BurpShell()
     shell.cmdloop()
     return 0
 
 
-# Self-register with the lab registry so `cyberlab labs` / `cyberlab run` work.
-from src.core import Scenario, lab_registry as _lab_registry  # noqa: E402
-from src.core.track import registry as _track_registry  # noqa: E402
-from src.core.track import Tutorial as _Tutorial  # noqa: F401
+# ---------------------------------------------------------------------------
+# Self-register labs with the lab registry
+# ---------------------------------------------------------------------------
+
+from src.core import lab_registry as _lab_registry  # noqa: E402
+from src.core.lab import Scenario, registry as _scenario_registry  # noqa: E402
 
 
 def _burp_lab() -> int:
     return run_burp(argparse.Namespace(target="http://lab.local"))
 
 
-_lab_registry.register(
+_scenario_registry.register(
     Scenario(
         id="burp-01",
         title="Intercepting proxy basics",
@@ -405,77 +436,5 @@ _lab_registry.register(
         module="burp",
         run=_burp_lab,
         tags=["web", "proxy", "burp", "offline"],
-    )
-)
-
-# Register burp tutorials with the track registry
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="web-sqli-01",
-        title="SQL Injection via Intercepting Proxy",
-        category="web",
-        module="burp",
-        description="Inject a SQL payload into a search parameter through the proxy.",
-        vulnerability="sql_injection",
-        difficulty="easy",
-        track="web-security",
-        flag="FLAG{sqli_basic_success}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="web-xss-01",
-        title="Reflected Cross-Site Scripting",
-        category="web",
-        module="burp",
-        description="Inject a reflected XSS payload into a search parameter.",
-        vulnerability="xss",
-        difficulty="easy",
-        track="web-security",
-        flag="FLAG{xss_reflected_success}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="web-idor-01",
-        title="Insecure Direct Object Reference",
-        category="web",
-        module="burp",
-        description="Access another user's profile by manipulating the profile ID parameter.",
-        vulnerability="idor",
-        difficulty="medium",
-        track="web-security",
-        flag="FLAG{idor_access_granted}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="web-auth-bypass-01",
-        title="Authentication Bypass via Session Cookie",
-        category="web",
-        module="burp",
-        description="Access an admin endpoint by manipulating the session cookie.",
-        vulnerability="auth_bypass",
-        difficulty="medium",
-        track="web-security",
-        flag="FLAG{admin_session_hijack}",
-        ai_enabled=True,
-    )
-)
-_track_registry.register_tutorial(
-    _Tutorial(
-        id="web-file-upload-01",
-        title="File Upload Bypass",
-        category="web",
-        module="burp",
-        description="Bypass file extension filtering by using an alternate extension.",
-        vulnerability="file_upload_bypass",
-        difficulty="hard",
-        track="web-security",
-        flag="FLAG{upload_bypass_success}",
-        ai_enabled=True,
     )
 )

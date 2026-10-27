@@ -283,9 +283,9 @@
   </div>
 
   <div class="submission-card">
-    <h3>Submit Flag</h3>
+    <h3>Submit Answer</h3>
     <div class="form-group">
-      <input type="text" id="flagInput" placeholder="Enter your flag (e.g. FLAG{...})" maxlength="128">
+      <input type="text" id="flagInput" placeholder="Enter your answer" maxlength="128">
       <input type="hidden" id="currentTutorialId">
       <button id="submitBtn">Submit</button>
     </div>
@@ -493,7 +493,7 @@ function getAIHint() {
   const t = selectedTutorial;
   let hint = '';
   if (t.difficulty === 'easy') {
-    hint = `AI Hint (Easy): You're working on "${t.title}".\nVulnerability: ${t.vulnerability}\nTry the commands shown in the steps above in order.\nThe flag format is FLAG{...}.\nSubmit it in the "Submit Flag" box above.`;
+    hint = `AI Hint (Easy): You're working on "${t.title}".\nVulnerability: ${t.vulnerability}\nTry the commands shown in the steps above in order.\nSubmit your answer in the "Submit Answer" box above.`;
   } else if (t.difficulty === 'medium') {
     hint = `AI Hint (Medium): "${t.title}" isolates the ${t.vulnerability} vulnerability.\nFocus on the specific parameter or field being manipulated.\nReview each step's command carefully before submitting.\nSubmit the flag when you've confirmed the vulnerability.`;
   } else {

@@ -313,7 +313,6 @@ _track_registry.register_tutorial(
         vulnerability="web_misconfiguration",
         difficulty="easy",
         track="web-security",
-        flag="FLAG{webscan_done}",
         ai_enabled=True,
     )
 )

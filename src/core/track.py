@@ -186,7 +186,7 @@ class TrackRegistry:
         for item in data.get("submissions", []):
             self.add_submission(
                 tutorial_id=item["tutorial_id"],
-                flag=item["flag"],
+                flag=None,
                 correct=item.get("correct", False),
                 timestamp=item.get("timestamp", ""),
             )

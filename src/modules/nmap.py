@@ -227,7 +227,6 @@ _track_registry.register_tutorial(
         vulnerability="port_discovery",
         difficulty="easy",
         track="network-security",
-        flag="FLAG{nmap_scan_complete}",
         ai_enabled=True,
     )
 )
@@ -241,7 +240,6 @@ _track_registry.register_tutorial(
         vulnerability="service_disclosure",
         difficulty="medium",
         track="network-security",
-        flag="FLAG{service_enum_done}",
         ai_enabled=True,
     )
 )
@@ -255,7 +253,6 @@ _track_registry.register_tutorial(
         vulnerability="os_disclosure",
         difficulty="hard",
         track="network-security",
-        flag="FLAG{os_fingerprinted}",
         ai_enabled=True,
     )
 )

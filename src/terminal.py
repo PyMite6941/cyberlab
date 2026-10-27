@@ -427,7 +427,7 @@ class CyberTerminal(cmd.Cmd):
         """Submit a flag for the selected tutorial.
 
         usage: submit <flag>
-        Example: submit FLAG{sqli_basic_success}
+        Example: submit <your-answer>
         """
         if not self._selected_tutorial:
             print("No tutorial selected. Use 'tutorial <id>' first.")

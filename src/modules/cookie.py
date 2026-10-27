@@ -211,7 +211,6 @@ _track_registry.register_tutorial(
         vulnerability="insecure_cookie",
         difficulty="easy",
         track="web-security",
-        flag="FLAG{cookie_scan_done}",
         ai_enabled=True,
     )
 )
