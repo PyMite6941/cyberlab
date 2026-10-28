@@ -64,16 +64,51 @@ class Packet:
 # Synthetic packet generation
 # ---------------------------------------------------------------------------
 
+import socket
+
+# MAC addresses for simulated devices on the local network
 MACS = [
-    "00:1a:2b:3c:4d:5e",
-    "00:1a:2b:3c:4d:5f",
-    "00:1a:2b:3c:4d:60",
-    "00:1a:2b:3c:4d:61",
-    "ff:ff:ff:ff:ff:ff",
+    "00:1a:2b:3c:4d:5e",   # local machine
+    "00:1a:2b:3c:4d:5f",   # router
+    "00:1a:2b:3c:4d:60",   # phone
+    "00:1a:2b:3c:4d:61",   # IoT device
+    "ff:ff:ff:ff:ff:ff",   # broadcast
 ]
-IPS = ["192.168.1.10", "192.168.1.20", "10.0.0.5", "10.0.0.99", "8.8.8.8", "1.1.1.1"]
+
+def _get_local_ip() -> str:
+    """Auto-detect the machine's local IP address.
+
+    Creates a UDP socket to a public DNS server (doesn't actually send data)
+    to determine which local interface/IP would be used for outbound traffic.
+    Falls back to localhost if detection fails.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
+
+
+# Laptop-scoped IP ranges: the machine's actual subnet plus common private ranges
+LAPTOP_IP = _get_local_ip()
+IPS = [
+    LAPTOP_IP,
+    "172.20.10.1",   # gateway
+    "172.20.10.10",
+    "172.20.10.20",
+    "172.20.10.50",
+    "192.168.1.10",
+    "192.168.1.20",
+    "10.0.0.5",
+    "10.0.0.99",
+    "8.8.8.8",
+    "1.1.1.1",
+]
 HTTP_PATHS = ["/index.html", "/login", "/api/data", "/search?q=test", "/admin"]
-DNS_NAMES = ["example.com", "lab.local", "google.com", "github.com", "update.microsoft.com"]
+DNS_NAMES = ["example.com", "lab.local", "google.com", "github.com", "update.microsoft.com", "localhost"]
 
 
 def _rand_choice(seq, rng):
@@ -234,7 +269,7 @@ class DNSTunnelingChallenge(Challenge):
             src_mac="00:1a:2b:3c:4d:5e",
             dst_mac="00:1a:2b:3c:4d:5f",
             eth_type="IPv4",
-            src_ip="192.168.1.50",
+            src_ip="172.20.10.50",   # laptop-scoped internal host
             dst_ip="8.8.8.8",
             protocol="DNS",
             src_port=54321,
@@ -320,8 +355,8 @@ class PortScanChallenge(Challenge):
         rng = random.Random(99)
         packets = generate_packets(count=60, seed=rng.randint(0, 9999))
 
-        scanner_ip = "10.0.0.99"
-        target_ip = "192.168.1.10"
+        scanner_ip = "172.20.10.99"   # scanning host (simulated, on local subnet)
+        target_ip = LAPTOP_IP         # the local machine itself
         base_ts = datetime(2026, 1, 1, 12, 0, 30)
         for i, port in enumerate([22, 23, 25, 53, 80, 443, 3389, 8080, 3306, 5432]):
             pkt = Packet(

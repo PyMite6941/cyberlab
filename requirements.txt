@@ -1,1 +1,4 @@
-click>=8.1
+# cyberterminal requires no third-party Python packages.
+# Everything is standard library (tkinter, cmd, json, pathlib, etc.).
+# The venv is still created for isolation; `pip install -e .` registers
+# the `cyberterminal` console entry point.

@@ -3,9 +3,7 @@ name = "cyberterminal"
 version = "0.1.0"
 description = "Custom emulated terminal for offline cybersecurity practice (BurpSuite + Wireshark simulators)"
 requires-python = ">=3.10"
-dependencies = [
-    "click>=8.1",
-]
+dependencies = []
 
 [project.scripts]
 cyberterminal = "src.terminal:main"

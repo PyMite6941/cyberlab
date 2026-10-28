@@ -20,26 +20,29 @@ Git: commits on `master`, remote `origin` = `https://github.com/PyMite6941/cyber
 - OSINT is online-only (fails gracefully when offline)
 - Docs system: list/search/download/status with online/offline detection
 - Interactive install: prompts for docs, tools, tutorials; --non-interactive, --cache-wheels, --offline, --recreate flags
+- `--install-tools` detects/installs real tools (wireshark, nmap, sqlmap, hydra, nikto, burpsuite) via winget/choco/brew/apt
+- `--clone-repos` clones GitHub repos (sqlmap, hydra, nikto) into `src/tools/`
 - All source files have comprehensive docstrings
 - No hardcoded FLAG{...} anywhere in src/
 - Dead submission system removed (src/core/submission.py + src/data/submissions.json deleted)
 
 ### Files
-- `pyproject.toml` — `cyberterminal = "src.terminal:main"` entry point, packages = ["src"]
-- `src/terminal.py` — windowed tkinter GUI terminal (CyberTerminalGUI + CyberTerminal alias for backward compat)
+- `pyproject.toml` — `cyberterminal = "src.terminal:main"` entry point, packages = ["src"], dependencies = [] (stdlib only)
+- `requirements.txt` — no third-party packages (all stdlib: tkinter, cmd, json, pathlib, etc.)
+- `src/terminal.py` — windowed tkinter GUI terminal (typewriter input, gear Styles icon, CYBERLAB logo)
 - `src/__main__.py` — `python -m src` entry point
 - `src/core/challenge.py` — Challenge base class, ChallengeRegistry, CAPTURES_DIR
 - `src/core/track.py` — Track, Tutorial, TrackRegistry
 - `src/core/lab.py` — Scenario, LabRegistry
 - `src/core/docs.py` — docs catalog, online/offline detection, hints, download
-- `src/core/submission.py` — submission/verification
-- `src/modules/*.py` — 11 simulators (auth, burp, hydra, nikto, nmap, cookie, webscan, osint, siem, sqlmap, wireshark)
+- `src/modules/*.py` — 11 simulators (auth, burp, hydra, nikto, nmap, cookie, webscan, osint, siem, sqlmap, wireshark), each with `run_<tool>()` for windowed launch
+- `src/tools/` — cloned GitHub repos for real tools (sqlmap, hydra, nikto) when --clone-repos used
 - `src/tutorials/data.json` — 26 tutorial definitions
 - `src/tutorials/tracks.json` — 5 track definitions
 - `src/tutorials/index.html` — self-contained HTML tutorial search page
-- `install.py` — interactive install (docs, tools, tutorials prompts)
-- `install.bat` / `install.sh` — install wrappers
-- `run.bat` / `run.sh` — terminal launch wrappers
+- `install.py` — interactive install: venv + deps + real tool detection/install (winget/choco/brew/apt) + GitHub repo cloning
+- `install.bat` / `install.sh` — install wrappers (pass through to install.py)
+- `run.bat` / `run.sh` — terminal launch wrappers (cross-platform venv python detection)
 - `.gitignore` — ignores .venv, wheels, caches, build artifacts, .env
 - `README.md` — cyberterminal docs
 - `todo.md` — this file
