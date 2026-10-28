@@ -16,6 +16,7 @@ import argparse
 import cmd
 import shlex
 import random
+import zlib
 from typing import List, Optional, Dict
 
 
@@ -61,7 +62,9 @@ def generate_scan(target: str, ports: str = "1-1000", seed: int = 42) -> dict:
         A dict with scan results including host state, open ports, services,
         OS guess, and scan statistics.
     """
-    rng = random.Random(hash(target + str(seed)) % (2**32))
+    # crc32, not hash(): str hashes are randomized per process, so hash()
+    # gave different results every run.
+    rng = random.Random(zlib.crc32(f"{target}{seed}".encode()))
 
     # Parse port specification
     port_list: List[int] = []

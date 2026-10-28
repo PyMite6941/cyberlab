@@ -17,6 +17,15 @@ chmod +x install.sh run.sh
 ./run.sh
 ```
 
+Progress is saved to `~/.cyberterminal/progress.json`. Set
+`CYBERTERMINAL_HOME` to keep it somewhere else.
+
+Smoke test (no window needed):
+
+```bash
+python3 tests/smoke_terminal.py
+```
+
 ## What is cyberterminal?
 
 `cyberterminal` IS the program — there is no separate `cyberlab` command. Running

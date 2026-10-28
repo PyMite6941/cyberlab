@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import cmd
 import shlex
+from urllib.parse import parse_qsl, urlsplit
 from typing import Optional
 
 
@@ -40,9 +41,11 @@ def run_sqlmap_test(target: str, method: str = "GET", data: str = "") -> dict:
         A dict with test results including vulnerable parameters, payloads,
         and evidence.
     """
+    # Only parameters the request actually carries can be tested.
+    present = {k for k, _ in parse_qsl(urlsplit(target).query)} | {k for k, _ in parse_qsl(data)}
     vulnerable_params = []
     for param_name, test_method, param, vulnerable, evidence, technique in INJECTION_TESTS:
-        if test_method.upper() == method.upper():
+        if test_method.upper() == method.upper() and param in present:
             vulnerable_params.append({
                 "parameter": param,
                 "method": method,
@@ -55,7 +58,7 @@ def run_sqlmap_test(target: str, method: str = "GET", data: str = "") -> dict:
         "target": target,
         "method": method,
         "data": data,
-        "tests_run": len([t for t in INJECTION_TESTS if t[1].upper() == method.upper()]),
+        "tests_run": len(vulnerable_params),
         "vulnerable_params": vulnerable_params,
         "vulnerable_count": sum(1 for p in vulnerable_params if p["vulnerable"]),
     }

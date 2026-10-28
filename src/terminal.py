@@ -10,6 +10,8 @@ packets/traffic - nothing touches the network.
 from __future__ import annotations
 
 import cmd
+import contextlib
+import io
 import shlex
 import sys
 import threading
@@ -22,17 +24,17 @@ from src.core.docs import (
     is_online, get_docs_for_tool, get_all_docs, download_doc,
     get_offline_docs, get_hint_for_tool, is_tool_available,
 )
-from src.modules.auth import run_auth
-from src.modules.burp import run_burp
-from src.modules.hydra import run_hydra
-from src.modules.nikto import run_nikto
-from src.modules.nmap import run_nmap
-from src.modules.cookie import run_cookie
-from src.modules.webscan import run_webscan
-from src.modules.osint import run_osint_shell
-from src.modules.siem import run_siem
-from src.modules.sqlmap import run_sqlmap
-from src.modules.wireshark import run_wireshark
+from src.modules.auth import AuthShell
+from src.modules.burp import BurpShell
+from src.modules.hydra import HydraShell
+from src.modules.nikto import NiktoShell
+from src.modules.nmap import NmapShell
+from src.modules.cookie import CookieShell
+from src.modules.webscan import WebScanShell
+from src.modules.osint import OsintShell
+from src.modules.siem import SIEMShell
+from src.modules.sqlmap import SqlmapShell
+from src.modules.wireshark import WiresharkShell
 from src.tutorials.manager import TutorialManager
 
 # Self-register modules (scenarios/challenges register at import)
@@ -124,15 +126,18 @@ class CyberTerminalGUI(cmd.Cmd):
             ("submit <answer>", "submit an answer for the selected challenge"),
             ("progress", "show completion progress"),
             ("docs", "documentation: list, search, download, status"),
-            ("burp", "launch intercepting proxy (real or simulated)"),
-            ("wireshark", "launch packet capture (real or simulated)"),
-            ("nmap", "launch network scanner (real or simulated)"),
-            ("sqlmap", "launch SQL injection tool (real or simulated)"),
-            ("hydra", "launch password cracker (real or simulated)"),
-            ("nikto", "launch web vuln scanner (real or simulated)"),
+            ("burp", "launch simulated intercepting proxy (own window)"),
+            ("wireshark", "launch simulated packet capture (own window)"),
+            ("nmap", "launch simulated network scanner (own window)"),
+            ("sqlmap", "launch simulated SQL injection tool (own window)"),
+            ("hydra", "launch simulated password cracker (own window)"),
+            ("nikto", "launch simulated web vulnerability scanner (own window)"),
+            ("cookie", "launch simulated cookie security scanner (own window)"),
+            ("webscan", "launch simulated website scanner (own window)"),
+            ("osint", "launch simulated OSINT tool (online only)"),
+            ("auth", "launch simulated authentication security lab (own window)"),
+            ("siem", "launch simulated SIEM log analysis lab (own window)"),
             ("clear", "clear the screen"),
-            ("cat", "display the contents of a file"),
-            ("grep", "search for a pattern in a file"),
             ("exit / quit", "leave the terminal"),
         ]
         for name, desc in cmds:
@@ -253,6 +258,7 @@ class CyberTerminalGUI(cmd.Cmd):
         if not t:
             self._writeln(f"Unknown tutorial: {tid}")
             return
+        self._selected_tutorial = tid
         self._writeln(f"Tutorial: {t.get('id','')} — {t.get('title','')}")
         self._writeln(f"  Category: {t.get('category','')}  Difficulty: {t.get('difficulty','')}")
         self._writeln(f"  Module: {t.get('module','')}")
@@ -301,7 +307,7 @@ class CyberTerminalGUI(cmd.Cmd):
         self._writeln(lab.description)
         self._writeln()
         try:
-            lab.run()
+            _launch_tool_window(lab.module)
         except Exception as e:
             self._writeln(f"Lab error: {e}")
 
@@ -393,130 +399,61 @@ class CyberTerminalGUI(cmd.Cmd):
     def do_burp(self, arg: str) -> None:
         """Launch simulated intercepting proxy (BurpSuite-style) in its own window."""
         self._writeln("Launching BurpSuite simulator in a new window...")
-        _launch_tool_window("burp", run_burp, {"target": "http://lab.local"})
+        _launch_tool_window("burp")
 
     def do_wireshark(self, arg: str) -> None:
         """Launch simulated packet capture (Wireshark-style) in its own window."""
         self._writeln("Launching Wireshark simulator in a new window...")
-        _launch_tool_window("wireshark", run_wireshark, {})
+        _launch_tool_window("wireshark")
 
     def do_nmap(self, arg: str) -> None:
         """Launch simulated network scanner (Nmap-style) in its own window."""
         self._writeln("Launching Nmap simulator in a new window...")
-        _launch_tool_window("nmap", run_nmap, {})
+        _launch_tool_window("nmap")
 
     def do_sqlmap(self, arg: str) -> None:
         """Launch simulated SQL injection tool (SQLmap-style) in its own window."""
         self._writeln("Launching SQLmap simulator in a new window...")
-        _launch_tool_window("sqlmap", run_sqlmap, {})
+        _launch_tool_window("sqlmap")
 
     def do_hydra(self, arg: str) -> None:
         """Launch simulated password cracker (Hydra-style) in its own window."""
         self._writeln("Launching Hydra simulator in a new window...")
-        _launch_tool_window("hydra", run_hydra, {})
+        _launch_tool_window("hydra")
 
     def do_nikto(self, arg: str) -> None:
         """Launch simulated web vulnerability scanner (Nikto-style) in its own window."""
         self._writeln("Launching Nikto simulator in a new window...")
-        _launch_tool_window("nikto", run_nikto, {})
+        _launch_tool_window("nikto")
 
     def do_cookie(self, arg: str) -> None:
-        """Cookie security is a learning category, not a runnable tool.
-
-        Use: tutorials  to see cookie tutorials
-             tutorial web-cookie-01  to view steps
-        """
-        self._writeln("Cookie security is a learning category, not a runnable tool.")
-        self._writeln("  tutorials             list all tutorials")
-        self._writeln("  tutorial web-cookie-01  view cookie security tutorial steps")
-        self._writeln("  help web               browse tutorials in a browser")
+        """Launch simulated cookie security scanner in its own window."""
+        self._writeln("Launching Cookie security scanner in a new window...")
+        _launch_tool_window("cookie")
 
     def do_webscan(self, arg: str) -> None:
-        """Web scanning is a learning category, not a runnable tool.
-
-        Use: tutorials  to see web scan tutorials
-             tutorial web-webscan-01  to view steps
-        """
-        self._writeln("Web scanning is a learning category, not a runnable tool.")
-        self._writeln("  tutorials             list all tutorials")
-        self._writeln("  tutorial web-webscan-01  view web scanning tutorial steps")
-        self._writeln("  help web               browse tutorials in a browser")
+        """Launch simulated website scanner in its own window."""
+        self._writeln("Launching Website scanner in a new window...")
+        _launch_tool_window("webscan")
 
     def do_osint(self, arg: str) -> None:
-        """OSINT is a learning category, not a runnable tool.
-
-        Use: tutorials  to see OSINT tutorials
-             tutorial osint-domain-01  to view steps
-        """
-        self._writeln("OSINT is a learning category, not a runnable tool.")
-        self._writeln("  tutorials          list all tutorials")
-        self._writeln("  tutorial osint-domain-01  view OSINT domain reconnaissance steps")
-        self._writeln("  help web           browse tutorials in a browser")
+        """Launch simulated OSINT tool (online only)."""
+        if not is_online():
+            self._writeln("OSINT requires network access. You are currently OFFLINE.")
+            self._writeln("Connect to the internet and try again.")
+            return
+        self._writeln("Launching OSINT simulator in a new window...")
+        _launch_tool_window("osint")
 
     def do_auth(self, arg: str) -> None:
-        """Auth is a learning category, not a runnable tool.
-
-        Use: tutorials  to see auth tutorials
-             tutorial auth-password-spray-01  to view steps
-        """
-        self._writeln("Authentication is a learning category, not a runnable tool.")
-        self._writeln("  tutorials              list all tutorials")
-        self._writeln("  tutorial auth-password-spray-01  view auth tutorial steps")
-        self._writeln("  help web               browse tutorials in a browser")
+        """Launch simulated authentication security lab in its own window."""
+        self._writeln("Launching Authentication security lab in a new window...")
+        _launch_tool_window("auth")
 
     def do_siem(self, arg: str) -> None:
-        """SIEM is a learning category, not a runnable tool.
-
-        Use: tutorials  to see SIEM tutorials
-             tutorial siem-brute-force-01  to view steps
-        """
-        self._writeln("SIEM is a learning category, not a runnable tool.")
-        self._writeln("  tutorials             list all tutorials")
-        self._writeln("  tutorial siem-brute-force-01  view SIEM tutorial steps")
-        self._writeln("  help web              browse tutorials in a browser")
-
-    def do_cat(self, arg: str) -> None:
-        """Display the contents of a file.
-
-        usage: cat <file>
-        """
-        path = arg.strip()
-        if not path:
-            self._writeln("usage: cat <file>")
-            return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                self._writeln(f.read())
-        except FileNotFoundError:
-            self._writeln(f"cat: {path}: No such file or directory")
-        except IsADirectoryError:
-            self._writeln(f"cat: {path}: Is a directory")
-        except Exception as e:
-            self._writeln(f"cat: {path}: {e}")
-
-    def do_grep(self, arg: str) -> None:
-        """Search for a pattern in a file.
-
-        usage: grep <pattern> <file>
-        """
-        parts = shlex.split(arg)
-        if len(parts) < 2:
-            self._writeln("usage: grep <pattern> <file>")
-            return
-        pattern, path = parts[0], parts[1]
-        try:
-            import re
-            rx = re.compile(pattern)
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                for i, line in enumerate(f, 1):
-                    if rx.search(line):
-                        self._writeln(f"{i}:{line.rstrip()}")
-        except FileNotFoundError:
-            self._writeln(f"grep: {path}: No such file or directory")
-        except re.error as e:
-            self._writeln(f"grep: invalid pattern: {e}")
-        except Exception as e:
-            self._writeln(f"grep: {path}: {e}")
+        """Launch simulated SIEM log analysis lab in its own window."""
+        self._writeln("Launching SIEM log analysis lab in a new window...")
+        _launch_tool_window("siem")
 
     def do_clear(self, arg: str) -> None:
         """Clear the terminal screen."""
@@ -544,53 +481,38 @@ class CyberTerminalGUI(cmd.Cmd):
 # Tool window launcher (each tool gets its own local Toplevel window)
 # ---------------------------------------------------------------------------
 
-import subprocess
+# Simulator shells by command name (also the `module` of each lab).
+TOOL_SHELLS = {
+    "auth": AuthShell,
+    "burp": BurpShell,
+    "cookie": CookieShell,
+    "hydra": HydraShell,
+    "nikto": NiktoShell,
+    "nmap": NmapShell,
+    "osint": OsintShell,
+    "siem": SIEMShell,
+    "sqlmap": SqlmapShell,
+    "webscan": WebScanShell,
+    "wireshark": WiresharkShell,
+}
 
-def _find_real_tool(tool: str) -> str | None:
-    """Look for a real installed tool executable.
 
-    Checks common install locations and PATH. Returns the path if found,
-    else None.
+def run_tool_line(shell: cmd.Cmd, line: str) -> tuple[str, bool]:
+    """Run one line in a simulator shell; return (output, whether it quit).
+
+    The simulators are cmd.Cmd shells. Their cmdloop() reads the console, not
+    a window, so the tool window feeds them one line at a time instead.
     """
-    import shutil
-    # Check PATH first
-    found = shutil.which(tool)
-    if found:
-        return found
-
-    # Common Windows install paths
-    if sys.platform == "win32":
-        candidates = {
-            "wireshark": [
-                "C:/Program Files/Wireshark/Wireshark.exe",
-                "C:/Program Files (x86)/Wireshark/Wireshark.exe",
-            ],
-            "nmap": [
-                "C:/Program Files (x86)/Nmap/nmap.exe",
-                "C:/Program Files/Nmap/nmap.exe",
-            ],
-            "burpsuite": [
-                "C:/Program Files/Burp Suite Community/burpsuite.exe",
-                "C:/Program Files/PortSwigger/burpsuite.exe",
-            ],
-        }
-        for path in candidates.get(tool, []):
-            if Path(path).exists():
-                return path
-
-    return None
+    out = io.StringIO()
+    shell.stdout = out  # cmd's own messages, e.g. "*** Unknown syntax"
+    with contextlib.redirect_stdout(out):  # the simulators' print() calls
+        stop = shell.postcmd(shell.onecmd(shell.precmd(line)), line)
+    return out.getvalue(), bool(stop)
 
 
-def _launch_tool_window(name: str, runner, ns_kwargs: dict) -> None:
-    """Launch a tool in its own Toplevel window.
-
-    Tries to launch the real installed tool first; falls back to the
-    simulated version if the real tool is not found.
-    """
-    import argparse
-
-    real_exe = _find_real_tool(name)
-
+def _launch_tool_window(name: str) -> None:
+    """Launch a simulator tool in its own Toplevel window."""
+    shell = TOOL_SHELLS[name]()
     win = tk.Toplevel()
     win.title(f"cyberterminal — {name}")
     win.geometry("900x600")
@@ -604,105 +526,6 @@ def _launch_tool_window(name: str, runner, ns_kwargs: dict) -> None:
     )
     text.pack(fill=tk.BOTH, expand=True)
     text.configure(state=tk.DISABLED)
-
-    def append(text_str: str) -> None:
-        text.configure(state=tk.NORMAL)
-        text.insert(tk.END, text_str)
-        text.see(tk.END)
-        text.configure(state=tk.DISABLED)
-
-    if real_exe:
-        # Launch the real tool as a subprocess
-        append(f"[cyberterminal] Found real {name} at: {real_exe}\n")
-        append(f"[cyberterminal] Launching {name} (real tool)...\n\n")
-
-        def run_real() -> None:
-            try:
-                proc = subprocess.Popen(
-                    [real_exe],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                )
-                for line in proc.stdout:
-                    win.after(0, lambda l=line: append(l))
-                proc.wait()
-                win.after(0, lambda: append(f"\n[cyberterminal] {name} exited with code {proc.returncode}\n"))
-            except Exception as e:
-                win.after(0, lambda: append(f"\n[cyberterminal] Error launching {name}: {e}\n"))
-                win.after(0, lambda: append(f"[cyberterminal] Falling back to simulated {name}...\n\n"))
-                run_simulated()
-
-        def run_simulated() -> None:
-            old_stdout = sys.stdout
-
-            class Cap:
-                def __init__(self, cb):
-                    self.cb = cb
-                    self.buf = ""
-                def write(self, s):
-                    self.buf += s
-                    while "\n" in self.buf:
-                        part, self.buf = self.buf.split("\n", 1)
-                        win.after(0, lambda p=part: append(p + "\n"))
-                    return len(s)
-                def flush(self):
-                    if self.buf:
-                        win.after(0, lambda: append(self.buf))
-                        self.buf = ""
-
-            cap = Cap(append)
-            sys.stdout = cap
-            try:
-                runner(argparse.Namespace(**ns_kwargs))
-            finally:
-                sys.stdout = old_stdout
-                if cap.buf:
-                    win.after(0, lambda: append(cap.buf))
-
-        threading.Thread(target=run_real, daemon=True).start()
-    else:
-        # No real tool found — launch simulated version
-        append(f"[cyberterminal] {name} not installed on this machine.\n")
-        append(f"[cyberterminal] Launching simulated {name} instead...\n\n")
-        install_hint = {
-            "wireshark": "Install: winget install WiresharkFoundation.Wireshark  (or brew install wireshark / apt install wireshark)",
-            "nmap": "Install: winget install Insecure.Nmap  (or brew install nmap / apt install nmap)",
-            "burpsuite": "Install: winget install PortSwigger.BurpSuiteCommunity  (or download from portswigger.net)",
-            "sqlmap": "Install: git clone https://github.com/sqlmapproject/sqlmap.git  (or brew install sqlmap / apt install sqlmap)",
-            "hydra": "Install: brew install hydra  (or apt install hydra)",
-            "nikto": "Install: brew install nikto  (or apt install nikto)",
-        }.get(name, "")
-        if install_hint:
-            append(f"  {install_hint}\n")
-        append("\n")
-
-        old_stdout = sys.stdout
-
-        class Cap:
-            def __init__(self, cb):
-                self.cb = cb
-                self.buf = ""
-            def write(self, s):
-                self.buf += s
-                while "\n" in self.buf:
-                    part, self.buf = self.buf.split("\n", 1)
-                    win.after(0, lambda p=part: append(p + "\n"))
-                return len(s)
-            def flush(self):
-                if self.buf:
-                    win.after(0, lambda: append(self.buf))
-                    self.buf = ""
-
-        cap = Cap(append)
-        sys.stdout = cap
-        try:
-            runner(argparse.Namespace(**ns_kwargs))
-        finally:
-            sys.stdout = old_stdout
-            if cap.buf:
-                win.after(0, lambda: append(cap.buf))
 
     # Input line at bottom (typewriter style within the tool window)
     input_frame = tk.Frame(win, bg="#0a0a0a")
@@ -721,6 +544,28 @@ def _launch_tool_window(name: str, runner, ns_kwargs: dict) -> None:
     )
     entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10), pady=5)
     entry.focus_set()
+
+    def append(text_str: str) -> None:
+        text.configure(state=tk.NORMAL)
+        text.insert(tk.END, text_str)
+        text.see(tk.END)
+        text.configure(state=tk.DISABLED)
+
+    def on_enter(event) -> str:
+        line = entry.get().strip()
+        entry.delete(0, tk.END)
+        if not line:
+            return "break"
+        append(f"{name}> {line}\n")
+        output, stop = run_tool_line(shell, line)
+        append(output)
+        if stop:
+            win.after(300, win.destroy)
+        return "break"
+
+    entry.bind("<Return>", on_enter)
+    if shell.intro:
+        append(shell.intro if shell.intro.endswith("\n") else shell.intro + "\n")
 
     # Close handler
     def on_close() -> None:
@@ -752,10 +597,12 @@ class TerminalWindow:
         self.root.configure(bg=self.bg_color)
 
         # State
-        self.term = CyberTerminalGUI(output_callback=self._append_output)
+        # Commands run on a worker thread; their output is handed to the Tk
+        # thread so it lands in order with print() output and the next prompt.
+        self.term = CyberTerminalGUI(output_callback=self._post_output)
         self.command_history: list[str] = []
         self.history_index = 0
-        self.input_start = "1.0"  # index where current input line begins
+        self.awaiting_input = False  # a prompt is showing and accepts typing
 
         self._build_ui()
         self._setup_terminal()
@@ -826,21 +673,35 @@ class TerminalWindow:
         self._update_status()
 
     # ----- typewriter input management -----
+    # The prompt and what the user types sit on the last line of the buffer.
+    # The "input_start" mark sits right after the prompt (left gravity, so
+    # typed text goes after it). The mark used to sit before the prompt, so
+    # every command was read as "yberterminal> <command>" and failed.
 
     def _start_input_line(self) -> None:
-        """Place the prompt at the end of the buffer and mark input start."""
-        self.text.insert(tk.END, "cyberterminal> ")
+        """Show a fresh prompt on a new last line."""
+        if self.awaiting_input:
+            return
+        if self.text.compare("end-1c", "!=", "end-1c linestart"):
+            self.text.insert("end-1c", "\n")
+        self.text.insert("end-1c", self.term.prompt)
+        self.text.mark_set("input_start", "end-1c")
+        self.text.mark_gravity("input_start", tk.LEFT)
+        self.text.mark_set(tk.INSERT, "end-1c")
         self.text.see(tk.END)
-        # input_start points to the first char the user can type (after prompt)
-        self.input_start = self.text.index(tk.INSERT)
+        self.awaiting_input = True
 
     def _get_input(self) -> str:
-        """Read what the user has typed on the current input line."""
-        return self.text.get(self.input_start, tk.END).rstrip("\n")
+        """Read what the user has typed after the prompt."""
+        return self.text.get("input_start", "end-1c")
 
     def _clear_input(self) -> None:
-        """Clear the current input line (after the prompt)."""
-        self.text.delete(self.input_start, tk.END)
+        """Clear what the user has typed after the prompt."""
+        self.text.delete("input_start", "end-1c")
+
+    def _post_output(self, text: str) -> None:
+        """Queue output for the Tk thread (safe to call from the command thread)."""
+        self.root.after(0, self._append_output, text)
 
     def _append_output(self, text: str) -> None:
         if text == "__CLEAR__":
@@ -849,14 +710,23 @@ class TerminalWindow:
         if text == "__QUIT__":
             self.root.after(100, self.root.quit)
             return
-        # Always append output at the end of the buffer
-        self.text.insert(tk.END, text)
+        if self.awaiting_input:
+            # A prompt is showing: put the output on the lines above it.
+            if not text.endswith("\n"):
+                text += "\n"
+            self.text.insert("input_start linestart", text)
+        else:
+            self.text.insert("end-1c", text)
         self.text.see(tk.END)
 
     def _clear_terminal(self) -> None:
+        self.text.configure(state=tk.NORMAL)
         self.text.delete("1.0", tk.END)
+        prompt_was_showing = self.awaiting_input
+        self.awaiting_input = False
         self._append_output(self.term.intro)
-        self._start_input_line()
+        if prompt_was_showing:  # cleared from the menu; a command run will re-prompt itself
+            self._start_input_line()
 
     def _update_status(self) -> None:
         online = is_online()
@@ -906,21 +776,30 @@ class TerminalWindow:
     # ----- key event handlers (typewriter feel) -----
 
     def _on_key(self, event) -> str:
-        # Prevent typing before the input line start
-        if self.text.compare(tk.INSERT, "<", self.input_start):
-            self.text.mark_set(tk.INSERT, tk.END)
-            return "break"
+        if not event.char:
+            return None  # arrows, modifiers, shortcuts
+        if not self.awaiting_input:
+            return "break"  # a command is still running
+        # Typing anywhere above the prompt types at the end of the input line
+        if self.text.compare(tk.INSERT, "<", "input_start"):
+            self.text.mark_set(tk.INSERT, "end-1c")
         return None  # allow normal typing
 
     def _on_backspace(self, event) -> str:
-        if self.text.compare(tk.INSERT, "<=", self.input_start):
-            return "break"  # cannot delete the prompt
+        if not self.awaiting_input or self.text.compare(tk.INSERT, "<=", "input_start"):
+            return "break"  # cannot delete the prompt or past output
         return None  # allow normal backspace
 
     def _on_return(self, event) -> str:
+        if not self.awaiting_input:
+            return "break"  # a command is still running
         line = self._get_input().strip()
-        self.text.insert(tk.END, "\n")
-        self.text.see(tk.END)
+        self.awaiting_input = False
+        # The prompt and the typed line stay in the buffer as the command's echo.
+        self.text.insert("end-1c", "\n")
+        if not line:
+            self._start_input_line()
+            return "break"
         self.command_history.append(line)
         self.history_index = len(self.command_history)
 
@@ -929,26 +808,28 @@ class TerminalWindow:
         return "break"
 
     def _on_up(self, event) -> str:
-        if not self.command_history:
+        if not self.command_history or not self.awaiting_input:
             return "break"
         self._clear_input()
         if self.history_index > 0:
             self.history_index -= 1
-        self.text.insert(self.input_start, self.command_history[self.history_index])
+        self.text.insert("input_start", self.command_history[self.history_index])
         return "break"
 
     def _on_down(self, event) -> str:
-        if not self.command_history:
+        if not self.command_history or not self.awaiting_input:
             return "break"
         self._clear_input()
         if self.history_index < len(self.command_history) - 1:
             self.history_index += 1
-            self.text.insert(self.input_start, self.command_history[self.history_index])
+            self.text.insert("input_start", self.command_history[self.history_index])
         else:
             self.history_index = len(self.command_history)
         return "break"
 
     def _on_tab(self, event) -> str:
+        if not self.awaiting_input:
+            return "break"
         text = self._get_input()
         if not text:
             return "break"
@@ -956,17 +837,20 @@ class TerminalWindow:
         for c in ["help", "tutorials", "tracks", "difficulty", "focus", "next",
                   "tutorial", "labs", "run", "submit", "progress", "docs",
                   "burp", "wireshark", "nmap", "sqlmap", "hydra", "nikto",
-                  "clear", "cat", "grep", "exit"]:
+                  "cookie", "webscan", "osint", "auth", "siem", "clear", "exit"]:
             if c.startswith(text):
                 matches.append(c)
         if len(matches) == 1:
             self._clear_input()
-            self.text.insert(self.input_start, matches[0] + " ")
+            self.text.insert("input_start", matches[0] + " ")
         return "break"
 
     def _run_command(self, line: str) -> None:
         old_stdout = sys.stdout
         try:
+            # Inside this class `self` is the capture, not the window: it
+            # used to call self.root / self._append_output, which made every
+            # print() from a command raise AttributeError.
             class OutputCapture:
                 def __init__(self, cb):
                     self.cb = cb
@@ -975,36 +859,36 @@ class TerminalWindow:
                     self.buf += s
                     while "\n" in self.buf:
                         part, self.buf = self.buf.split("\n", 1)
-                        self.root.after(0, lambda p=part: self._append_output(p + "\n"))
+                        self.cb(part + "\n")
                     return len(s)
                 def flush(self):
                     if self.buf:
-                        self.root.after(0, lambda: self._append_output(self.buf))
+                        self.cb(self.buf)
                         self.buf = ""
 
-            cap = OutputCapture(self._append_output)
+            cap = OutputCapture(self._post_output)
             sys.stdout = cap
+            self.term.stdout = cap  # cmd's own messages, e.g. "*** Unknown syntax"
             try:
                 stop = self.term.onecmd(line)
             finally:
                 sys.stdout = old_stdout
-                if cap.buf:
-                    self.root.after(0, lambda: self._append_output(cap.buf))
+                cap.flush()
 
             if stop:
                 self.root.after(100, self.root.quit)
         except SystemExit:
             self.root.after(100, self.root.quit)
         except Exception as e:
-            self.root.after(0, lambda: self._append_output(f"Error: {e}\n"))
+            self._post_output(f"Error: {e}\n")  # format now; `e` is cleared after this block
 
-        # Start a fresh input line after the command finishes
+        # Start a fresh input line once the queued output has been shown
         self.root.after(0, self._start_input_line)
         self.root.after(0, self._update_status)
 
     def _show_help(self) -> None:
         self.term.do_help("")
-        self._append_output("\n")
+        self._post_output("\n")
 
     def _open_web(self) -> None:
         self.term.do_help("web")

@@ -13,6 +13,7 @@ terminal's ``tutorials`` and ``tutorial <id>`` commands.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
@@ -131,6 +132,15 @@ def load_tracks() -> List[dict]:
     return raw.get("tracks", [])
 
 
+def _progress_path() -> Path:
+    """Where completed tutorials are saved: per user, outside the source tree.
+
+    Set ``CYBERTERMINAL_HOME`` to use another directory.
+    """
+    home = os.environ.get("CYBERTERMINAL_HOME")
+    return (Path(home).expanduser() if home else Path.home() / ".cyberterminal") / "progress.json"
+
+
 class TutorialManager:
     """In-memory tutorial index with search, filter, and lookup operations.
 
@@ -144,6 +154,7 @@ class TutorialManager:
         self.tutorials: List[Tutorial] = load_tutorial_objects()
         self.tracks: List[dict] = load_tracks()
         self._by_id = {t.id: t for t in self.tutorials}
+        self._completed = self._load_progress()
 
     def all(self) -> List[Tutorial]:
         """Return a copy of all loaded tutorials."""
@@ -211,6 +222,39 @@ class TutorialManager:
     def by_difficulty(self, difficulty: str) -> List[Tutorial]:
         """Return all tutorials at a given difficulty."""
         return [t for t in self.tutorials if t.difficulty == difficulty]
+
+    # The terminal works with raw dicts (t.get("id"), t.get("steps")), so these
+    # return dicts rather than Tutorial objects.
+
+    def list_tutorials(self) -> List[dict]:
+        """Return all tutorials as raw dicts."""
+        return list(self.raw)
+
+    def get_tutorial(self, tutorial_id: str) -> Optional[dict]:
+        """Return one tutorial as a raw dict, or None."""
+        return self.get_raw(tutorial_id)
+
+    def is_completed(self, tutorial_id: str) -> bool:
+        """Whether the user has completed this tutorial."""
+        return tutorial_id in self._completed
+
+    def mark_completed(self, tutorial_id: str) -> None:
+        """Record a tutorial as completed and save progress."""
+        self._completed.add(tutorial_id)
+        path = _progress_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"completed": sorted(self._completed)}, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _load_progress() -> set:
+        path = _progress_path()
+        if not path.exists():
+            return set()
+        try:
+            return set(json.loads(path.read_text(encoding="utf-8")).get("completed", []))
+        except (OSError, ValueError) as e:
+            print(f"Warning: could not read progress file {path}: {e}")
+            return set()
 
     def by_vulnerability(self, vulnerability: str) -> List[Tutorial]:
         """Return all tutorials isolating a given vulnerability."""
