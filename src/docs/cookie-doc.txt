@@ -1,0 +1,51 @@
+CYBERLAB — Cookie Scanner Module Documentation
+===============================================
+
+Module: cookie
+Description: Simulated cookie security analyzer.
+Analyzes HTTP cookies for security issues including missing flags,
+session fixation, excessive length, and insecure values.
+No real network connections are made.
+
+CLI Commands (inside the cookie tool window):
+----------------------------------------------
+cookie> scan <cookie_string> [--target <url>]
+    Analyze cookies for security issues.
+    Example: scan "session=abc123; track=xyz" --target http://lab.local
+    Example: scan "sessionid=admin; prefs=dark"
+    Example: scan "session=abc123; HttpOnly; Secure; SameSite=Strict"
+
+cookie> issues
+    Show only issues from the last scan.
+
+cookie> quit / exit
+    Leave the cookie simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> cookie        # launch cookie simulator window
+cyberterminal> run cookie-01 # run the cookie lab scenario
+
+Security Attributes Checked:
+----------------------------
+HttpOnly   - Cookie accessible via JavaScript if missing (XSS risk)
+Secure     - Cookie sent over unencrypted connections if missing
+SameSite   - CSRF protection if missing or weak (use Strict or Lax)
+__Host-    - Requires Secure flag, must not set Path/Domain
+__Secure-  - Requires Secure flag
+
+Session Issues Checked:
+-----------------------
+- Predictable session values (admin, user, test, 1234, password, default)
+- Excessively long cookie values (>200 chars)
+- Insecure values (true, false, 1, 0, yes, no, admin)
+
+Cookie String Formats Supported:
+--------------------------------
+Cookie header style:   session=abc123; track=xyz
+Set-Cookie style:      session=abc123; HttpOnly; Secure; SameSite=Strict
+
+Security Notes:
+---------------
+- All analysis is local/simulated. No real cookies are transmitted.
+- Use for learning cookie security methodology safely.

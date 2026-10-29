@@ -1,0 +1,51 @@
+CYBERLAB — SIEM Module Documentation
+=====================================
+
+Module: siem
+Description: Simulated Security Information and Event Management module.
+Provides simulated security event logs for practicing brute force
+detection, port scan detection, and privilege escalation detection.
+No real network or logs are used.
+
+CLI Commands (inside the siem tool window):
+--------------------------------------------
+siem> logs [--limit N]
+    List SIEM events.
+    Example: logs --limit 30
+
+siem> firewall
+    Show firewall deny events.
+
+siem> admin
+    Show admin/sudo privilege events.
+
+siem> filter <event_type>
+    Filter events by type (failed_login, deny, sudo, admin_login, etc.).
+
+siem> analyze brute
+    Detect brute force: one source with many failed logins.
+
+siem> analyze scan
+    Detect port scanning: one source denied on many different ports.
+
+siem> analyze escalate
+    Detect privilege escalation: sudo/admin from non-admin users.
+
+siem> quit / exit
+    Leave the siem simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> siem        # launch siem simulator window
+cyberterminal> run siem-01 # run the siem lab scenario
+
+Analysis Types:
+---------------
+brute   - Brute force: repeated failed logins from a single source
+scan    - Port scan: denied connections to many different ports
+escalate - Privilege escalation: sudo/admin activity from non-admin accounts
+
+Security Notes:
+---------------
+- All events are simulated. No real logs are analyzed.
+- Use for learning SIEM log analysis methodology safely.

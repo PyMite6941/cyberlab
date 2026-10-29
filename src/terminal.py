@@ -19,7 +19,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, font as tkfont
 from pathlib import Path
 
-from src.core import lab_registry, track_registry
+from src.core import lab_registry, track_registry, crash_handler, format_crash, log_error
 from src.core.docs import (
     is_online, get_docs_for_tool, get_all_docs, download_doc,
     get_offline_docs, get_hint_for_tool, is_tool_available,
@@ -52,14 +52,16 @@ import src.modules.wireshark  # noqa: F401
 
 
 ASCII_LOGO = r"""
-  ____  __   __ ____  _____ ____  _        _    ____  
- / ___| \ \ / /| __ )| ____|  _ \| |      / \  | __ ) 
-| |      \ V / |  _ \|  _| | |_) | |     / _ \ |  _ \ 
-| |___    | |  | |_) | |___|  _ <| |___ / ___ \| |_) |
- \____|   |_|  |____/|_____|_| \_\_____/_/   \_\____/ 
+  ____ __   __ ____  _____ ____  _        _    ____  
+ / ___|\ \ / /| __ )| ____|  _ \| |      / \  | __ ) 
+| |     \ V / |  _ \|  _| | |_) | |     / _ \ |  _ \ 
+| |___   | |  | |_) | |___|  _ <| |___ / ___ \| |_) |
+ \____|  |_|  |____/|_____|_| \_\_____/_/   \_\____/ 
        
-  CYBERLAB - offline cybersecurity practice
+|  CYBERLAB - offline cybersecurity practice
 """
+
+__version__ = "1.0.0"
 
 class CyberTerminalGUI(cmd.Cmd):
     """The cmd.Cmd backend logic for cyberterminal."""
@@ -126,6 +128,8 @@ class CyberTerminalGUI(cmd.Cmd):
             ("submit <answer>", "submit an answer for the selected challenge"),
             ("progress", "show completion progress"),
             ("docs", "documentation: list, search, download, status"),
+            ("crashlog", "show crash/error log file"),
+            ("version", "show cyberterminal version"),
             ("burp", "launch simulated intercepting proxy (own window)"),
             ("wireshark", "launch simulated packet capture (own window)"),
             ("nmap", "launch simulated network scanner (own window)"),
@@ -462,6 +466,27 @@ class CyberTerminalGUI(cmd.Cmd):
         else:
             import os
             os.system("cls" if sys.platform == "win32" else "clear")
+
+    def do_crashlog(self, arg: str) -> None:
+        """Show the crash/error log file.
+
+        usage: crashlog
+        usage: crashlog path
+        """
+        from src.core.crashlog import _crash_log_path
+        path = _crash_log_path()
+        if arg.strip() == "path":
+            self._writeln(f"Crash log location: {path}")
+            return
+        if not path.exists():
+            self._writeln("No crash log found.")
+            return
+        self._writeln(f"=== Crash Log ({path}) ===")
+        self._writeln(path.read_text(encoding="utf-8", errors="replace"))
+
+    def do_version(self, arg: str) -> None:
+        """Show the cyberterminal version."""
+        self._writeln(f"cyberterminal v{__version__}")
 
     def do_quit(self, arg: str) -> None:
         """Leave the terminal."""
@@ -836,6 +861,7 @@ class TerminalWindow:
         matches = []
         for c in ["help", "tutorials", "tracks", "difficulty", "focus", "next",
                   "tutorial", "labs", "run", "submit", "progress", "docs",
+                  "crashlog", "version",
                   "burp", "wireshark", "nmap", "sqlmap", "hydra", "nikto",
                   "cookie", "webscan", "osint", "auth", "siem", "clear", "exit"]:
             if c.startswith(text):
@@ -880,7 +906,8 @@ class TerminalWindow:
         except SystemExit:
             self.root.after(100, self.root.quit)
         except Exception as e:
-            self._post_output(f"Error: {e}\n")  # format now; `e` is cleared after this block
+            log_error(e, context=f"running command: {line}")
+            self._post_output(format_crash(e) + "\n")
 
         # Start a fresh input line once the queued output has been shown
         self.root.after(0, self._start_input_line)

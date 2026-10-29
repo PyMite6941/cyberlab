@@ -1,0 +1,51 @@
+CYBERLAB — Webscan Module Documentation
+========================================
+
+Module: webscan
+Description: Simulated website vulnerability scanner.
+Performs simulated security header analysis, directory enumeration,
+technology fingerprinting, and misconfiguration detection.
+No real network connections are made.
+
+CLI Commands (inside the webscan tool window):
+-----------------------------------------------
+webscan> scan <target> [--port <port>]
+    Scan a web target for security issues.
+    Example: scan http://lab.local
+    Example: scan lab.local --port 8080
+
+webscan> headers
+    Show missing security headers from the last scan.
+
+webscan> dirs
+    Show exposed directories from the last scan.
+
+webscan> tech
+    Show detected technologies from the last scan.
+
+webscan> quit / exit
+    Leave the webscan simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> webscan        # launch webscan simulator window
+cyberterminal> run webscan-01 # run the webscan lab scenario
+
+Security Headers Checked:
+-------------------------
+X-Frame-Options        - Prevents clickjacking
+Content-Security-Policy - Mitigates XSS and data injection
+Strict-Transport-Security - Forces HTTPS
+X-Content-Type-Options - Prevents MIME type sniffing
+Referrer-Policy        - Controls referrer leakage
+Permissions-Policy     - Controls browser feature access
+
+Risk Score:
+-----------
+Calculated from missing headers + exposed directories + detected technologies.
+Low (<30), Medium (30-69), High (70+).
+
+Security Notes:
+---------------
+- All scans are simulated. No real HTTP requests are made.
+- Use for learning web vulnerability scanning methodology safely.

@@ -1,0 +1,65 @@
+CYBERLAB — Burp Suite Module Documentation
+==========================================
+
+Module: burp
+Description: Simulated intercepting proxy (BurpSuite-style). Generates
+simulated HTTP traffic with embedded web security challenges.
+No real network connections are made — everything is simulated locally.
+
+CLI Commands (inside the burp tool window):
+--------------------------------------------
+burp> targets
+    Show the target URL and available endpoints.
+
+burp> intercept <METHOD> <path> [body]
+    Intercept an HTTP request for inspection/modification.
+    Example: intercept GET /login
+    Example: intercept POST /login username=admin&password=test
+
+burp> modify header <Name> <Value>
+    Modify a header on the intercepted request.
+    Example: modify header Cookie session=abc123
+
+burp> modify body <text>
+    Modify the request body.
+    Example: modify body q=1' OR '1'='1
+
+burp> modify response body <text>
+    Modify the last captured response body.
+
+burp> show request
+    Display the currently intercepted request.
+
+burp> show response / response
+    Display the last response received from the target.
+
+burp> forward
+    Forward the intercepted request to the simulated target and show the response.
+
+burp> quit / exit
+    Leave the burp simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> burp        # launch burp simulator window
+cyberterminal> run burp-01 # run the burp lab scenario
+
+Challenges:
+-----------
+web-sqli-01    SQL Injection via Intercepting Proxy (easy)
+web-idor-01    Insecure Direct Object Reference (medium)
+web-auth-bypass-01 Authentication Bypass via Session Cookie (medium)
+
+Target Endpoints (simulated):
+-----------------------------
+GET  /         - Lab home page
+GET  /login    - Login form
+POST /login    - Login submission (creates session)
+GET  /search   - Search (reflects q parameter)
+GET  /profile  - User profile (requires session)
+GET  /admin    - Admin panel (requires admin session)
+
+Security Notes:
+---------------
+- All traffic is simulated. No real HTTP requests are made.
+- Use for learning web proxy methodology safely.

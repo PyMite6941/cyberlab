@@ -1,0 +1,42 @@
+CYBERLAB — Hydra Module Documentation
+======================================
+
+Module: hydra
+Description: Simulated password brute-force cracking tool.
+Simulates password attacks against mock authentication services.
+No real network connections or credential stuffing is performed.
+
+CLI Commands (inside the hydra tool window):
+---------------------------------------------
+hydra> crack <target> <service> <user> [--wordlist <file>]
+    Attempt password cracking against a simulated service.
+    Example: crack 192.168.1.10 ssh admin
+    Example: crack lab.local http-post admin --wordlist passwords.txt
+
+hydra> quit / exit
+    Leave the hydra simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> hydra        # launch hydra simulator window
+cyberterminal> run hydra-01 # run the hydra lab scenario
+
+Supported Services:
+-------------------
+ssh, ftp, http, http-post
+
+Simulated Credentials (username + service -> password):
+-------------------------------------------------------
+admin/ssh -> admin
+admin/http -> password
+user1/ssh -> password123
+user1/ftp -> welcome1
+root/ssh -> toor
+test/http -> test
+guest/ftp -> guest
+
+Security Notes:
+---------------
+- All cracking is simulated. No real authentication is attacked.
+- Credentials are mock data for learning purposes only.
+- Use for learning brute-force methodology safely.

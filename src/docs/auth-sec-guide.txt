@@ -1,0 +1,53 @@
+CYBERLAB — Auth Module Documentation
+=====================================
+
+Module: auth
+Description: Simulated authentication security module.
+Provides simulated authentication events for practicing password spraying
+detection, session hijacking, and MFA bypass simulation.
+No real network or authentication is used.
+
+CLI Commands (inside the auth tool window):
+--------------------------------------------
+auth> logs [--limit N]
+    List authentication events.
+    Example: logs --limit 20
+
+auth> filter <result>
+    Filter events by result (failed, success, mfa_challenge).
+    Example: filter failed
+
+auth> analyze spray
+    Analyze authentication patterns for password spraying.
+
+auth> mfa --start
+    Simulate initiating an MFA challenge.
+
+auth> mfa --bypass
+    Simulate bypassing MFA via session manipulation.
+
+auth> mfa --verify
+    Simulate verifying access without MFA.
+
+auth> quit / exit
+    Leave the auth simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> auth        # launch auth simulator window
+cyberterminal> run auth-01 # run the auth lab scenario
+
+Analysis Types:
+---------------
+spray    - Password spraying: many users, few attempts each, same source
+
+MFA Simulation:
+---------------
+--start  - Initiate MFA challenge (TOTP)
+--bypass - Attempt MFA bypass via session manipulation
+--verify - Verify access without MFA
+
+Security Notes:
+---------------
+- All events are simulated. No real authentication is tested.
+- Use for learning auth security methodology safely.

@@ -1,0 +1,46 @@
+CYBERLAB — Nmap Module Documentation
+====================================
+
+Module: nmap
+Description: Simulated network scanner (Nmap-style). Generates synthetic
+network scan results with open ports, services, versions, and OS fingerprinting.
+No real network packets are sent — everything is simulated locally.
+
+CLI Commands (inside the nmap tool window):
+-------------------------------------------
+nmap> scan <target> [--ports <ports>]
+    Scan a target host for open ports and services.
+    Example: scan 192.168.1.10
+    Example: scan 192.168.1.0/24 --ports 22,80,443
+
+nmap> os
+    Show OS fingerprint guess from the last scan.
+
+nmap> ports
+    List open ports from the last scan with service/product/version.
+
+nmap> quit / exit
+    Leave the nmap simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> nmap        # launch nmap simulator window
+cyberterminal> run nmap-01 # run the nmap lab scenario
+
+Supported Port Services:
+------------------------
+21/ftp, 22/ssh, 23/telnet, 25/smtp, 53/dns, 80/http, 110/pop3,
+111/rpcbind, 135/msrpc, 139/netbios-ssn, 143/imap, 443/https,
+445/microsoft-ds, 993/imaps, 995/pop3s, 3306/mysql, 3389/rdp,
+5432/postgresql, 5900/vnc, 8080/http-proxy
+
+OS Fingerprint Guesses:
+-----------------------
+Linux 3.2-4.9, Linux 4.4-5.4, Microsoft Windows 7-10,
+Microsoft Windows Server 2008-2016, Apple macOS 10.12-11, FreeBSD 11-13
+
+Security Notes:
+---------------
+- All scans are simulated. No real network traffic is generated.
+- Results are deterministic for a given target+seed.
+- Use for learning port scanning methodology safely.

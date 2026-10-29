@@ -1,0 +1,65 @@
+CYBERLAB — Wireshark Module Documentation
+=========================================
+
+Module: wireshark
+Description: Simulated packet capture (Wireshark-style). Generates synthetic
+Ethernet/IP/TCP/UDP/HTTP/DNS packets with embedded challenge scenarios.
+Packets can be exported to real pcap files for analysis in Wireshark.
+No real NIC or network is used — everything is synthesized in memory.
+
+CLI Commands (inside the wireshark tool window):
+------------------------------------------------
+wireshark> scan [--packets N]
+    Generate a packet capture with N packets (default 25).
+    Example: scan --packets 40
+
+wireshark> list [filter]
+    List packets with optional display filter.
+    Filters: proto==HTTP, ip==192.168.1.10, port==80, proto==HTTP and port==80
+    Example: list proto==DNS
+
+wireshark> challenge <id>
+    Start a guided challenge (wireshark-dns-01, wireshark-port-01).
+    Example: challenge wireshark-dns-01
+
+wireshark> challenge list
+    List available challenges.
+
+wireshark> submit <answer>
+    Submit your answer to the active challenge.
+
+wireshark> hint
+    Get a hint for the current challenge.
+
+wireshark> packets
+    Show current packet count.
+
+wireshark> quit / exit
+    Leave the wireshark simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> wireshark           # launch wireshark simulator window
+cyberterminal> run wireshark-01    # run the wireshark lab scenario
+
+Challenges:
+-----------
+wireshark-dns-01   DNS Tunneling Detection (easy)
+    Detect data exfiltration via unusually long DNS query subdomains.
+
+wireshark-port-01  Port Scan Detection (medium)
+    Identify a port scan from many SYN connections to different ports.
+
+Packet Protocols:
+-----------------
+HTTP, DNS, TCP, UDP, ARP, ICMP
+
+Export:
+-------
+Captures are written to data/captures/*.pcap — real pcap files readable by
+Wireshark/tcpdump.
+
+Security Notes:
+---------------
+- All packets are synthetic. No real network capture occurs.
+- Use for learning packet analysis methodology safely.

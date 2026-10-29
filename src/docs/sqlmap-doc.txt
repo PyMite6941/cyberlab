@@ -1,0 +1,35 @@
+CYBERLAB — SQLmap Module Documentation
+=======================================
+
+Module: sqlmap
+Description: Simulated SQL injection testing tool. Generates simulated
+SQL injection test results against a mock vulnerable web target.
+No real network requests are made.
+
+CLI Commands (inside the sqlmap tool window):
+----------------------------------------------
+sqlmap> scan <url> [--method GET|POST] [--data <post_body>]
+    Test a target URL for SQL injection vulnerabilities.
+    Example: scan http://lab.local/search?q=test
+    Example: scan http://lab.local/login --method POST --data "username=admin&password=test"
+
+sqlmap> payload
+    Show payloads/techniques from the last test.
+
+sqlmap> quit / exit
+    Leave the sqlmap simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> sqlmap        # launch sqlmap simulator window
+cyberterminal> run sqlmap-01 # run the sqlmap lab scenario
+
+Supported Injection Techniques:
+-------------------------------
+UNION-based, Error-based, Stacked queries, Boolean-based blind
+
+Security Notes:
+---------------
+- All tests are simulated. No real network requests are made.
+- Results depend on the parameters present in the target URL.
+- Use for learning SQL injection detection methodology safely.

@@ -29,7 +29,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Network exploration and security auditing tool manual",
         "source_url": "https://nmap.org/book/man.html",
         "local_path": "docs/nmap-man.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "sqlmap-doc",
@@ -38,7 +38,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Automated SQL injection and database takeover tool documentation",
         "source_url": "https://github.com/sqlmapproject/sqlmap/wiki/Usage",
         "local_path": "docs/sqlmap-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "hydra-doc",
@@ -47,7 +47,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Network logon cracker documentation",
         "source_url": "https://github.com/vanhauser-thc/thc-hydra",
         "local_path": "docs/hydra-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "cookie-doc",
@@ -56,7 +56,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Cookie security attributes and analysis documentation",
         "source_url": "https://owasp.org/www-community/controls/Secure_Cookie_Attribute",
         "local_path": "docs/cookie-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "webscan-doc",
@@ -65,7 +65,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Website vulnerability scanning methodology documentation",
         "source_url": "https://owasp.org/www-community/vulnerabilities/Improper_Input_Validation",
         "local_path": "docs/webscan-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "osint-doc",
@@ -74,7 +74,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Open Source Intelligence techniques and methodology documentation",
         "source_url": "https://osintframework.com/",
         "local_path": "docs/osint-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "nikto-doc",
@@ -83,7 +83,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Web server vulnerability scanner documentation",
         "source_url": "https://cirt.net/nikto2-docs/",
         "local_path": "docs/nikto-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "burp-doc",
@@ -92,7 +92,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Intercepting proxy documentation",
         "source_url": "https://portswigger.net/burp/documentation",
         "local_path": "docs/burp-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "wireshark-doc",
@@ -101,7 +101,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Network protocol analyzer user guide",
         "source_url": "https://www.wireshark.org/docs/wsug_html_chunked/",
         "local_path": "docs/wireshark-doc.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "auth-sec-guide",
@@ -110,7 +110,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Authentication security best practices and attack techniques",
         "source_url": "https://owasp.org/www-community/controls/Authentication_Cheat_Sheet",
         "local_path": "docs/auth-sec-guide.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
     {
         "id": "siem-guide",
@@ -119,7 +119,7 @@ DOCS_CATALOG: list[dict] = [
         "description": "Security Information and Event Management analysis guide",
         "source_url": "https://owasp.org/www-community/attacks/Brute_force_attack",
         "local_path": "docs/siem-guide.txt",
-        "available_offline": False,
+        "available_offline": True,
     },
 ]
 

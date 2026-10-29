@@ -1,0 +1,49 @@
+CYBERLAB — Nikto Module Documentation
+======================================
+
+Module: nikto
+Description: Simulated web server vulnerability scanner.
+Generates simulated scan results including outdated software,
+missing headers, dangerous files, and common misconfigurations.
+No real network connections are made.
+
+CLI Commands (inside the nikto tool window):
+---------------------------------------------
+nikto> scan <target> [--port <port>]
+    Scan a web target for vulnerabilities.
+    Example: scan http://lab.local
+    Example: scan http://lab.local --port 8080
+
+nikto> findings [--severity high|medium|low|info]
+    Show findings from the last scan, optionally filtered by severity.
+
+nikto> quit / exit
+    Leave the nikto simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> nikto        # launch nikto simulator window
+cyberterminal> run nikto-01 # run the nikto lab scenario
+
+Severity Levels:
+----------------
+high   - Critical issues (outdated software, SQL injection possible)
+medium - Moderate issues (admin panels, missing headers)
+low    - Minor issues (ETags, directories)
+info   - Informational (robots.txt)
+
+Common Findings:
+----------------
+OSVDB-3092 /admin/ may reveal sensitive information
+OSVDB-3233 /icons/ directory is accessible
+OSVDB-3268 /robots.txt contains entries
+OSVDB-4512 Outdated Apache version detected
+OSVDB-6789 X-Frame-Options header is not set
+OSVDB-9012 Server leaks inodes via ETags
+OSVDB-3421 /phpmyadmin/ may reveal sensitive information
+OSVDB-5678 SQL injection possible in /search.php
+
+Security Notes:
+---------------
+- All scans are simulated. No real HTTP requests are made.
+- Use for learning web server scanning methodology safely.

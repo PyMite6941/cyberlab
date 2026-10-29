@@ -1,0 +1,36 @@
+CYBERLAB — OSINT Module Documentation
+=======================================
+
+Module: osint
+Description: Simulated Open Source Intelligence tool.
+Performs simulated domain/DNS reconnaissance, subdomain discovery,
+username availability checks, and IP geolocation.
+No real network connections or lookups are made.
+
+CLI Commands (inside the osint tool window):
+----------------------------------------------
+osint> scan <target> [--type domain|username|ip]
+    Run an OSINT lookup.
+    Example: scan example.com --type domain
+    Example: scan jdoe --type username
+    Example: scan 1.2.3.4 --type ip
+
+osint> quit / exit
+    Leave the osint simulator window.
+
+Cyberterminal Commands:
+-----------------------
+cyberterminal> osint        # launch osint simulator window
+cyberterminal> run osint-01 # run the osint lab scenario
+
+Lookup Types:
+-------------
+domain   - DNS records (A, MX, TXT, NS) + subdomain discovery
+username  - Username presence across GitHub, Twitter, Instagram, LinkedIn, Reddit, GitLab
+ip        - IP geolocation + DNS records
+
+Security Notes:
+---------------
+- All lookups are simulated. No real network requests are made.
+- Results are synthetic demo data.
+- Use for learning OSINT methodology safely.
