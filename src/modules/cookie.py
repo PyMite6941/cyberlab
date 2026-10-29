@@ -30,7 +30,10 @@ def analyze_cookies(cookie_string: str, target: str = "http://lab.local") -> dic
     """Analyze cookies for security issues.
 
     Args:
-        cookie_string: Raw Cookie header value (e.g. "session=abc123; track=xyz")
+        cookie_string: Raw Set-Cookie style string. Supports both:
+            - Simple: "session=abc123; track=xyz" (Cookie header style)
+            - With attributes: "session=abc123; HttpOnly; Secure; SameSite=Strict"
+              (Set-Cookie header style, recommended for full analysis)
         target: Target URL being scanned
 
     Returns:
@@ -48,37 +51,96 @@ def analyze_cookies(cookie_string: str, target: str = "http://lab.local") -> dic
             "summary": "No cookies provided to analyze.",
         }
 
-    # Parse cookies (simple split on ';' then '=')
-    raw_cookies = [c.strip() for c in cookie_string.split(";") if c.strip()]
+    # Parse cookies. First token is name=value; subsequent tokens may be
+    # attributes (HttpOnly, Secure, SameSite=..., etc.) or additional
+    # name=value pairs (Cookie header style).
+    raw_parts = [c.strip() for c in cookie_string.split(";") if c.strip()]
     cookies: list[dict] = []
 
-    for raw in raw_cookies:
-        if "=" in raw:
-            name, value = raw.split("=", 1)
+    i = 0
+    while i < len(raw_parts):
+        part = raw_parts[i]
+        if "=" in part:
+            name, value = part.split("=", 1)
             name = name.strip()
             value = value.strip()
+            # Collect attributes that follow this cookie (no '=' or known
+            # attribute names) until the next name=value pair.
+            attrs: list[str] = []
+            j = i + 1
+            while j < len(raw_parts):
+                nxt = raw_parts[j]
+                if "=" in nxt:
+                    # Could be another cookie or an attribute with a value
+                    # (e.g. SameSite=Strict). Check if it looks like an attr.
+                    lower = nxt.lower()
+                    if any(
+                        lower.startswith(k + "=")
+                        for k in ("samesite", "domain", "path", "expires",
+                                  "max-age")
+                    ):
+                        attrs.append(nxt)
+                        j += 1
+                        continue
+                    break
+                else:
+                    # Attribute without value (HttpOnly, Secure)
+                    attrs.append(nxt)
+                    j += 1
+            i = j
         else:
-            name = raw.strip()
-            value = ""
+            # Attribute without a preceding cookie - skip
+            i += 1
+            continue
 
+        attr_set = {a.lower() for a in attrs}
         issues: list[str] = []
 
-        # Check for session fixation (predictable session values)
+        # --- Flag checks (from Set-Cookie attributes) ---
+        has_httponly = "httponly" in attr_set
+        has_secure = "secure" in attr_set
+        samesite = None
+        for a in attrs:
+            if a.lower().startswith("samesite="):
+                samesite = a.split("=", 1)[1].strip()
+
+        if not has_httponly:
+            issues.append("Missing HttpOnly flag - accessible via JavaScript (XSS risk)")
+        if not has_secure:
+            issues.append("Missing Secure flag - sent over unencrypted connections")
+        if samesite is None:
+            issues.append("Missing SameSite attribute - vulnerable to CSRF")
+        elif samesite.lower() not in ("strict", "lax"):
+            issues.append(f"Weak SameSite value '{samesite}' - use Strict or Lax")
+
+        # --- Prefix validation ---
+        if name.startswith("__Host-") and not has_secure:
+            issues.append("__Host- prefix requires Secure flag")
+        if name.startswith("__Host-") and ("path" in attr_set or "domain" in attr_set):
+            issues.append("__Host- prefix must not set Path or Domain")
+        if name.startswith("__Secure-") and not has_secure:
+            issues.append("__Secure- prefix requires Secure flag")
+
+        # --- Session fixation (predictable session values) ---
         if name.lower() in ("session", "sessionid", "jsessionid", "phpsessid", "asp.sessionid"):
             if re.match(r"^(admin|user|test|1234|abcd|password|default)$", value, re.IGNORECASE):
                 issues.append("Predictable session value - session fixation risk")
 
-        # Check for excessive length (potential data leakage)
+        # --- Excessive length (potential data leakage) ---
         if len(value) > 200:
             issues.append(f"Excessively long cookie value ({len(value)} chars)")
 
-        # Check for common insecure values
-        if value.lower() in ("true", "false", "1", "0", "yes", "no", "admin", "true"):
+        # --- Common insecure values ---
+        if value.lower() in ("true", "false", "1", "0", "yes", "no", "admin"):
             issues.append(f"Insecure cookie value '{value}' - predictable or sensitive")
 
         cookies.append({
             "name": name,
             "value": value,
+            "attributes": attrs,
+            "has_httponly": has_httponly,
+            "has_secure": has_secure,
+            "samesite": samesite,
             "issues": issues,
         })
 
@@ -117,7 +179,15 @@ def format_analysis(result: dict) -> str:
     lines.append("-" * 60)
 
     for c in result["cookies"]:
-        lines.append(f"  Cookie: {c['name']}={c['value'][:30]}{'...' if len(c['value']) > 30 else ''}")
+        flags = []
+        if c["has_httponly"]:
+            flags.append("HttpOnly")
+        if c["has_secure"]:
+            flags.append("Secure")
+        if c["samesite"]:
+            flags.append(f"SameSite={c['samesite']}")
+        flag_str = f" [{', '.join(flags)}]" if flags else " [no flags]"
+        lines.append(f"  Cookie: {c['name']}={c['value'][:30]}{'...' if len(c['value']) > 30 else ''}{flag_str}")
         if c["issues"]:
             for issue in c["issues"]:
                 lines.append(f"    [!] {issue}")

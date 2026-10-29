@@ -20,12 +20,13 @@ from typing import Optional
 
 
 # Simulated injection test results
+# (method, parameter, vulnerable, evidence, technique)
 INJECTION_TESTS = [
-    ("test_parameter", "GET", "q", True, "ERROR: You have an error in your SQL syntax", "UNION-based SQL injection"),
-    ("test_parameter", "POST", "username", False, "No injection detected", "N/A"),
-    ("test_parameter", "GET", "id", True, "Microsoft OLE DB Provider for ODBC Drivers error", "Stacked queries"),
-    ("test_parameter", "GET", "name", True, "Warning: mysql_fetch_array()", "Error-based SQL injection"),
-    ("test_parameter", "POST", "search", True, "ORA-00933: SQL command not properly ended", "Boolean-based blind SQL injection"),
+    ("GET", "q", True, "ERROR: You have an error in your SQL syntax", "UNION-based SQL injection"),
+    ("POST", "username", False, "No injection detected", "N/A"),
+    ("GET", "id", True, "Microsoft OLE DB Provider for ODBC Drivers error", "Stacked queries"),
+    ("GET", "name", True, "Warning: mysql_fetch_array()", "Error-based SQL injection"),
+    ("POST", "search", True, "ORA-00933: SQL command not properly ended", "Boolean-based blind SQL injection"),
 ]
 
 
@@ -44,7 +45,7 @@ def run_sqlmap_test(target: str, method: str = "GET", data: str = "") -> dict:
     # Only parameters the request actually carries can be tested.
     present = {k for k, _ in parse_qsl(urlsplit(target).query)} | {k for k, _ in parse_qsl(data)}
     vulnerable_params = []
-    for param_name, test_method, param, vulnerable, evidence, technique in INJECTION_TESTS:
+    for test_method, param, vulnerable, evidence, technique in INJECTION_TESTS:
         if test_method.upper() == method.upper() and param in present:
             vulnerable_params.append({
                 "parameter": param,

@@ -32,11 +32,6 @@ from src.core.challenge import CAPTURES_DIR
 
 registry = ChallengeRegistry()
 
-
-# ---------------------------------------------------------------------------
-# Packet model
-# ---------------------------------------------------------------------------
-
 @dataclass
 class Packet:
     number: int
@@ -64,8 +59,6 @@ class Packet:
 # Synthetic packet generation
 # ---------------------------------------------------------------------------
 
-import socket
-
 # MAC addresses for simulated devices on the local network
 MACS = [
     "00:1a:2b:3c:4d:5e",   # local machine
@@ -75,32 +68,13 @@ MACS = [
     "ff:ff:ff:ff:ff:ff",   # broadcast
 ]
 
-def _get_local_ip() -> str:
-    """Auto-detect the machine's local IP address.
-
-    Creates a UDP socket to a public DNS server (doesn't actually send data)
-    to determine which local interface/IP would be used for outbound traffic.
-    Falls back to localhost if detection fails.
-    """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-
-# Laptop-scoped IP ranges: the machine's actual subnet plus common private ranges
-LAPTOP_IP = _get_local_ip()
+# Fixed IP ranges for deterministic captures (no socket calls at import time)
 IPS = [
-    LAPTOP_IP,
-    "172.20.10.1",   # gateway
+    "192.168.1.10",       # local machine (default)
+    "172.20.10.1",        # gateway
     "172.20.10.10",
     "172.20.10.20",
     "172.20.10.50",
-    "192.168.1.10",
     "192.168.1.20",
     "10.0.0.5",
     "10.0.0.99",
@@ -356,7 +330,7 @@ class PortScanChallenge(Challenge):
         packets = generate_packets(count=60, seed=rng.randint(0, 9999))
 
         scanner_ip = "172.20.10.99"   # scanning host (simulated, on local subnet)
-        target_ip = LAPTOP_IP         # the local machine itself
+        target_ip = "192.168.1.10"         # the local machine itself
         base_ts = datetime(2026, 1, 1, 12, 0, 30)
         for i, port in enumerate([22, 23, 25, 53, 80, 443, 3389, 8080, 3306, 5432]):
             pkt = Packet(
