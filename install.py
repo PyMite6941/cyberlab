@@ -470,10 +470,13 @@ def main(argv=None) -> int:
     parser.add_argument("--mode", choices=["binary", "python", "both"], default="both", help="Install mode: binary (dist/ single-file only), python (venv + source only), or both (default).")
     args = parser.parse_args(argv)
 
-    uv = find_uv()
-    python = find_python()
-    log(f"Using uv: {uv}")
-    log(f"Using python: {python}")
+    uv = None
+    python = None
+    if args.mode in ("python", "both"):
+        uv = find_uv()
+        python = find_python()
+        log(f"Using uv: {uv}")
+        log(f"Using python: {python}")
 
     os_name = detect_os()
     log(f"Detected OS: {os_name}")
@@ -505,6 +508,18 @@ def main(argv=None) -> int:
         else:
             tool_list = ["wireshark", "nmap", "sqlmap", "hydra", "nikto", "burpsuite"]
         print()
+
+    if args.mode == "binary":
+        # Binary-only: no Python/venv needed. Just ensure dist/ exists.
+        log("")
+        log("Binary-only mode: skipping Python/venv setup.")
+        bin_path = VENV_DIR.parent / "dist" / "cyberterminal.exe"
+        if not bin_path.exists():
+            log("ERROR: dist/cyberterminal.exe not found. Build it first on a machine with Python.")
+            log("  Then copy dist/ to this machine and run: ./cyberlab.sh --binary")
+            return 1
+        log(f"Binary ready: {bin_path}")
+        return 0
 
     if args.recreate and VENV_DIR.exists():
         log("Removing existing .venv")
