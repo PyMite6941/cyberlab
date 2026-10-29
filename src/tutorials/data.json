@@ -6,30 +6,31 @@
       "title": "SQL Injection via Intercepting Proxy",
       "category": "web",
       "module": "burp",
-      "description": "Inject a SQL payload into a search parameter through the proxy.",
+      "description": "Inject a SQL payload into a search parameter through the intercepting proxy and confirm the vulnerability.",
       "vulnerability": "sql_injection",
       "difficulty": "easy",
       "track": "web-security",
+      "flag": "1' OR '1'='1",
       "steps": [
         {
-          "description": "Start the proxy and list targets.",
+          "description": "Start the Burp simulator and list targets.",
           "command": "burp",
-          "notes": "Inside the shell, type 'targets' to see endpoints."
+          "notes": "Inside the shell, type 'targets' to see available endpoints."
         },
         {
-          "description": "Intercept a search request.",
+          "description": "Intercept a search request to identify the injection point.",
           "command": "intercept GET /search?q=test",
-          "notes": "Capture a GET request with a query parameter."
+          "notes": "Capture the GET request. The 'q' parameter in the URL is the injection point."
         },
         {
-          "description": "Inject a SQL payload.",
-          "command": "modify body q=1' OR '1'='1",
-          "notes": "Replace the search query with a SQL injection payload."
-        },
-        {
-          "description": "Forward and observe the response.",
+          "description": "Forward the request and observe the response.",
           "command": "forward",
-          "notes": "See how the simulated target responds to the injection."
+          "notes": "See how the simulated target handles the search query."
+        },
+        {
+          "description": "Submit the SQL injection payload as your answer.",
+          "command": "submit 1' OR '1'='1",
+          "notes": "The payload tests whether the q parameter is vulnerable to SQL injection."
         }
       ],
       "ai_enabled": true
@@ -39,30 +40,31 @@
       "title": "Reflected Cross-Site Scripting",
       "category": "web",
       "module": "burp",
-      "description": "Inject a reflected XSS payload into a search parameter.",
+      "description": "Inject a reflected XSS payload into a search parameter and confirm it executes in the response.",
       "vulnerability": "xss",
       "difficulty": "easy",
       "track": "web-security",
+      "flag": "<script>alert(1)</script>",
       "steps": [
         {
-          "description": "Start the proxy and list targets.",
+          "description": "Start the Burp simulator and list targets.",
           "command": "burp",
-          "notes": "Inside the shell, type 'targets' to see endpoints."
+          "notes": "Inside the shell, type 'targets' to see available endpoints."
         },
         {
-          "description": "Intercept a search request.",
+          "description": "Intercept a search request to identify the injection point.",
           "command": "intercept GET /search?q=test",
-          "notes": "Capture a GET request with a query parameter."
+          "notes": "Capture the GET request. The 'q' parameter reflects user input in the response."
         },
         {
-          "description": "Inject an XSS payload.",
-          "command": "modify body q=<script>alert(1)</script>",
-          "notes": "Replace the search query with an XSS payload."
-        },
-        {
-          "description": "Forward and observe the response.",
+          "description": "Forward the request and observe the response.",
           "command": "forward",
-          "notes": "See how the simulated target reflects the payload."
+          "notes": "See how the simulated target reflects the search query back in the page."
+        },
+        {
+          "description": "Submit the XSS payload as your answer.",
+          "command": "submit <script>alert(1)</script>",
+          "notes": "The payload tests whether user input is reflected without sanitization."
         }
       ],
       "ai_enabled": true
@@ -72,35 +74,41 @@
       "title": "Insecure Direct Object Reference",
       "category": "web",
       "module": "burp",
-      "description": "Access another user's profile by manipulating the profile ID parameter.",
+      "description": "Access another user's profile by manipulating the profile ID parameter in the URL.",
       "vulnerability": "idor",
       "difficulty": "medium",
       "track": "web-security",
+      "flag": "2",
       "steps": [
         {
-          "description": "Log in as a regular user.",
+          "description": "Start the Burp simulator and list targets.",
+          "command": "burp",
+          "notes": "Inside the shell, type 'targets' to see available endpoints."
+        },
+        {
+          "description": "Log in as a regular user and capture the session.",
           "command": "intercept POST /login username=user1&password=password123",
-          "notes": "Capture a valid user1 login request."
+          "notes": "Capture a valid user1 login request to establish a session."
         },
         {
           "description": "Forward and capture the session cookie.",
           "command": "forward",
-          "notes": "Note the Set-Cookie header in the response."
+          "notes": "Note the Set-Cookie header in the response - you need a valid session."
         },
         {
-          "description": "Access your own profile.",
+          "description": "Access your own profile to confirm the session works.",
           "command": "intercept GET /profile?id=1",
-          "notes": "View user1's own profile with a valid session."
+          "notes": "View user1's own profile with a valid session cookie."
         },
         {
-          "description": "Change the ID to access another user.",
-          "command": "modify body id=2",
-          "notes": "Try accessing user2's profile by changing the ID parameter."
+          "description": "Change the ID to access another user's profile.",
+          "command": "intercept GET /profile?id=2",
+          "notes": "Directly request user2's profile by changing the id parameter in the URL."
         },
         {
           "description": "Forward and observe the response.",
           "command": "forward",
-          "notes": "If IDOR exists, you can view another user's profile."
+          "notes": "If IDOR exists, you can view user2's profile with user1's session."
         }
       ],
       "ai_enabled": true
@@ -110,35 +118,41 @@
       "title": "Authentication Bypass via Session Cookie",
       "category": "web",
       "module": "burp",
-      "description": "Access an admin endpoint by manipulating the session cookie.",
+      "description": "Access an admin endpoint by manipulating the session cookie to use an admin session token.",
       "vulnerability": "auth_bypass",
       "difficulty": "medium",
       "track": "web-security",
+      "flag": "sess-admin",
       "steps": [
         {
-          "description": "Log in as a regular user.",
+          "description": "Start the Burp simulator and list targets.",
+          "command": "burp",
+          "notes": "Inside the shell, type 'targets' to see available endpoints."
+        },
+        {
+          "description": "Log in as a regular user and capture the session.",
           "command": "intercept POST /login username=user1&password=password123",
           "notes": "Capture a valid user1 login request."
         },
         {
           "description": "Forward and capture the session cookie.",
           "command": "forward",
-          "notes": "Note the Set-Cookie header in the response."
+          "notes": "Note the Set-Cookie header - regular users get a non-admin session."
         },
         {
-          "description": "Try accessing /admin with user1 session.",
+          "description": "Try accessing /admin with the regular session.",
           "command": "intercept GET /admin",
-          "notes": "This should return 403 Forbidden with a regular session."
+          "notes": "This should return 403 Forbidden with a regular user session."
         },
         {
-          "description": "Modify the cookie to admin session.",
+          "description": "Modify the cookie to use the admin session token.",
           "command": "modify header Cookie session=sess-admin",
-          "notes": "Swap in the admin session token."
+          "notes": "Swap in the admin session token to bypass the authorization check."
         },
         {
-          "description": "Forward and observe admin access.",
+          "description": "Forward and observe admin access granted.",
           "command": "forward",
-          "notes": "With admin session, /admin returns 200 and reveals the flag."
+          "notes": "With the admin session token, /admin returns 200 and reveals admin content."
         }
       ],
       "ai_enabled": true
@@ -148,30 +162,31 @@
       "title": "File Upload Bypass",
       "category": "web",
       "module": "burp",
-      "description": "Bypass file extension filtering by using an alternate extension.",
+      "description": "Bypass file extension filtering by manipulating the request to use an alternate extension.",
       "vulnerability": "file_upload_bypass",
       "difficulty": "hard",
       "track": "web-security",
+      "flag": "shell.phtml",
       "steps": [
         {
-          "description": "Start the proxy and list targets.",
+          "description": "Start the Burp simulator and list targets.",
           "command": "burp",
-          "notes": "Inside the shell, type 'targets' to see endpoints."
+          "notes": "Inside the shell, type 'targets' to see available endpoints."
         },
         {
-          "description": "Intercept an upload request.",
-          "command": "intercept POST /upload file=shell.php",
-          "notes": "Capture a file upload request."
+          "description": "Intercept a file upload request.",
+          "command": "intercept POST /search file=shell.php",
+          "notes": "Capture an upload request targeting /search with a .php filename."
         },
         {
-          "description": "Change the file extension.",
+          "description": "Change the file extension to bypass the filter.",
           "command": "modify body file=shell.phtml",
-          "notes": "Try .phtml instead of .php to bypass the filter."
+          "notes": "Try .phtml instead of .php - some filters only block .php extensions."
         },
         {
           "description": "Forward and observe the response.",
           "command": "forward",
-          "notes": "See if the server accepts the alternate extension."
+          "notes": "See if the simulated server accepts the alternate extension."
         }
       ],
       "ai_enabled": true
@@ -181,25 +196,26 @@
       "title": "DNS Traffic Analysis",
       "category": "network",
       "module": "wireshark",
-      "description": "Analyze simulated DNS queries for signs of DNS tunneling or exfiltration.",
+      "description": "Analyze simulated DNS queries for signs of DNS tunneling or data exfiltration.",
       "vulnerability": "dns_tunneling",
       "difficulty": "easy",
       "track": "network-security",
+      "flag": "a8f3b2c1d4e5f6a7b8c9d0e1f2a3b4c5.exfiltrate.example.com",
       "steps": [
         {
-          "description": "Generate a capture with DNS packets.",
+          "description": "Generate a packet capture with DNS traffic.",
           "command": "wireshark --packets 40",
-          "notes": "More packets increases DNS sample size."
+          "notes": "More packets increases the DNS sample size for analysis."
         },
         {
-          "description": "Filter to DNS protocol.",
+          "description": "Filter to DNS protocol only.",
           "command": "list proto==DNS",
-          "notes": "Show only DNS packets."
+          "notes": "Show only DNS packets to isolate DNS traffic."
         },
         {
-          "description": "Look for unusual query patterns.",
-          "command": "count",
-          "notes": "See protocol distribution and spot anomalies."
+          "description": "Look for queries with unusually long subdomain names.",
+          "command": "list",
+          "notes": "DNS tunneling uses long subdomains to encode exfiltrated data."
         }
       ],
       "ai_enabled": true
@@ -213,21 +229,22 @@
       "vulnerability": "tcp_handshake",
       "difficulty": "easy",
       "track": "network-security",
+      "flag": "SYN, SYN-ACK, ACK",
       "steps": [
         {
-          "description": "Generate a capture with TCP packets.",
+          "description": "Generate a packet capture with TCP traffic.",
           "command": "wireshark --packets 30",
           "notes": "Includes TCP SYN, SYN-ACK, and ACK packets."
         },
         {
-          "description": "Filter to TCP protocol.",
+          "description": "Filter to TCP protocol only.",
           "command": "list proto==TCP",
-          "notes": "Show only TCP packets."
+          "notes": "Show only TCP packets to see the handshake flow."
         },
         {
-          "description": "Follow a TCP stream.",
-          "command": "follow 1",
-          "notes": "View the simulated stream conversation."
+          "description": "Observe the SYN, SYN-ACK, ACK sequence.",
+          "command": "list",
+          "notes": "View the three-way handshake: SYN from client, SYN-ACK from server, ACK from client."
         }
       ],
       "ai_enabled": true
@@ -237,25 +254,26 @@
       "title": "Port Scan Detection",
       "category": "network",
       "module": "wireshark",
-      "description": "Identify a port scan by analyzing connection attempts to multiple ports.",
+      "description": "Identify a port scan by analyzing connection attempts to multiple ports from a single source.",
       "vulnerability": "port_scan",
       "difficulty": "medium",
       "track": "network-security",
+      "flag": "172.20.10.99",
       "steps": [
         {
-          "description": "Generate a larger capture.",
+          "description": "Generate a larger packet capture.",
           "command": "wireshark --packets 60",
-          "notes": "More packets increases port scan sample size."
+          "notes": "More packets increases the port scan sample size."
         },
         {
-          "description": "Filter to TCP protocol.",
+          "description": "Filter to TCP protocol only.",
           "command": "list proto==TCP",
-          "notes": "Show only TCP packets."
+          "notes": "Show only TCP packets to see connection attempts."
         },
         {
-          "description": "Look for SYN packets to many ports.",
-          "command": "count",
-          "notes": "Spot a single source hitting many destination ports."
+          "description": "Look for one source IP hitting many different ports.",
+          "command": "list",
+          "notes": "Spot a single source IP making SYN connections to ports 22, 23, 25, 53, 80, 443, 3389, 8080, 3306, 5432."
         }
       ],
       "ai_enabled": true
@@ -265,25 +283,26 @@
       "title": "ARP Spoofing Detection",
       "category": "network",
       "module": "wireshark",
-      "description": "Detect ARP spoofing by identifying duplicate MAC-to-IP mappings.",
+      "description": "Detect ARP spoofing by identifying duplicate MAC-to-IP mappings in the capture.",
       "vulnerability": "arp_spoofing",
       "difficulty": "hard",
       "track": "network-security",
+      "flag": "duplicate MAC-to-IP mapping",
       "steps": [
         {
-          "description": "Generate a capture with ARP-like traffic.",
+          "description": "Generate a packet capture with ARP traffic.",
           "command": "wireshark --packets 50",
-          "notes": "Look for ARP anomalies."
+          "notes": "Look for ARP anomalies in the capture."
         },
         {
-          "description": "Filter and inspect MAC-IP pairs.",
+          "description": "Filter to ARP protocol only.",
           "command": "list proto==ARP",
-          "notes": "Show ARP packets if any."
+          "notes": "Show ARP packets to inspect MAC-IP mappings."
         },
         {
-          "description": "Identify conflicting MAC addresses.",
-          "command": "count",
-          "notes": "Spot a single IP with multiple MACs."
+          "description": "Identify conflicting MAC addresses for the same IP.",
+          "command": "list",
+          "notes": "Spot a single IP address claimed by multiple different MAC addresses."
         }
       ],
       "ai_enabled": true
@@ -297,21 +316,22 @@
       "vulnerability": "icmp_tunneling",
       "difficulty": "hard",
       "track": "network-security",
+      "flag": "oversized ICMP payload",
       "steps": [
         {
-          "description": "Generate a capture with ICMP traffic.",
+          "description": "Generate a packet capture with ICMP traffic.",
           "command": "wireshark --packets 50",
-          "notes": "Look for unusual ICMP patterns."
+          "notes": "Look for unusual ICMP patterns in the capture."
         },
         {
-          "description": "Filter to ICMP protocol.",
+          "description": "Filter to ICMP protocol only.",
           "command": "list proto==ICMP",
-          "notes": "Show only ICMP packets."
+          "notes": "Show only ICMP packets to inspect payload sizes."
         },
         {
           "description": "Look for oversized ICMP payloads.",
-          "command": "count",
-          "notes": "Spot ICMP packets with large data payloads."
+          "command": "list",
+          "notes": "ICMP tunneling uses abnormally large data payloads in echo requests."
         }
       ],
       "ai_enabled": true
@@ -321,25 +341,31 @@
       "title": "Password Spraying Detection",
       "category": "auth",
       "module": "auth",
-      "description": "Identify password spraying by analyzing failed login attempts across many usernames.",
+      "description": "Identify password spraying by analyzing failed login attempts across many usernames from a single source.",
       "vulnerability": "password_spraying",
       "difficulty": "medium",
       "track": "authentication-security",
+      "flag": "10.0.0.99",
       "steps": [
         {
-          "description": "Review the authentication log entries.",
-          "command": "auth --logs",
-          "notes": "View simulated authentication events."
+          "description": "Start the auth simulator and review log entries.",
+          "command": "auth",
+          "notes": "Inside the shell, type 'logs' to view authentication events."
         },
         {
-          "description": "Filter for failed logins.",
-          "command": "auth --filter failed",
-          "notes": "Show only failed authentication attempts."
+          "description": "Filter for failed logins only.",
+          "command": "logs",
+          "notes": "Then type 'filter failed' to show only failed authentication attempts."
         },
         {
-          "description": "Identify one password against many users.",
-          "command": "auth --analyze spray",
-          "notes": "Detect the spraying pattern."
+          "description": "Analyze for password spraying pattern.",
+          "command": "filter failed",
+          "notes": "Then type 'analyze spray' to detect one source failing logins for many usernames."
+        },
+        {
+          "description": "Identify the spraying source IP.",
+          "command": "analyze spray",
+          "notes": "The spraying source will show many different usernames from one IP address."
         }
       ],
       "ai_enabled": true
@@ -353,21 +379,22 @@
       "vulnerability": "session_hijacking",
       "difficulty": "medium",
       "track": "authentication-security",
+      "flag": "stolen session token",
       "steps": [
         {
-          "description": "Start the proxy and capture a session.",
+          "description": "Start the Burp simulator and capture a login session.",
           "command": "burp",
-          "notes": "Intercept a login and capture the session cookie."
+          "notes": "Inside the shell, intercept a POST /login request to capture the session cookie."
         },
         {
-          "description": "Reuse the captured session.",
+          "description": "Reuse the captured session to access a profile.",
           "command": "intercept GET /profile",
-          "notes": "Use the stolen session to access a profile."
+          "notes": "Use the stolen session cookie to access another user's profile."
         },
         {
-          "description": "Forward and observe access.",
+          "description": "Forward and observe access granted.",
           "command": "forward",
-          "notes": "Confirm the hijacked session grants access."
+          "notes": "Confirm the hijacked session grants access to the target profile."
         }
       ],
       "ai_enabled": true
@@ -381,21 +408,22 @@
       "vulnerability": "mfa_bypass",
       "difficulty": "hard",
       "track": "authentication-security",
+      "flag": "session manipulation",
       "steps": [
         {
-          "description": "Log in and reach the MFA challenge.",
-          "command": "auth --mfa --start",
-          "notes": "Begin the MFA flow."
+          "description": "Start the auth simulator and begin the MFA flow.",
+          "command": "auth",
+          "notes": "Inside the shell, type 'mfa --start' to initiate an MFA challenge."
         },
         {
-          "description": "Manipulate the session to skip MFA.",
-          "command": "auth --mfa --bypass",
-          "notes": "Try to skip the second factor."
+          "description": "Attempt to bypass MFA via session manipulation.",
+          "command": "mfa --start",
+          "notes": "Then type 'mfa --bypass' to try skipping the second factor."
         },
         {
-          "description": "Verify access without MFA.",
-          "command": "auth --mfa --verify",
-          "notes": "Confirm access was granted without MFA."
+          "description": "Verify access without MFA verification.",
+          "command": "mfa --bypass",
+          "notes": "Then type 'mfa --verify' to confirm access was granted without MFA."
         }
       ],
       "ai_enabled": true
@@ -409,21 +437,22 @@
       "vulnerability": "brute_force",
       "difficulty": "easy",
       "track": "siem-logs",
+      "flag": "10.0.0.99",
       "steps": [
         {
-          "description": "Load the SIEM log data.",
-          "command": "siem --logs",
-          "notes": "View simulated security event logs."
+          "description": "Start the SIEM simulator and load log data.",
+          "command": "siem",
+          "notes": "Inside the shell, type 'logs' to view simulated security event logs."
         },
         {
-          "description": "Filter for failed logins from one source.",
-          "command": "siem --filter failed",
-          "notes": "Show only failed authentication attempts."
+          "description": "Filter for failed login attempts.",
+          "command": "logs",
+          "notes": "Then type 'filter failed' to show only failed authentication events."
         },
         {
-          "description": "Count attempts per source IP.",
-          "command": "siem --analyze brute",
-          "notes": "Identify the brute force source."
+          "description": "Analyze for brute force pattern.",
+          "command": "filter failed",
+          "notes": "Then type 'analyze brute' to identify repeated failures from one source."
         }
       ],
       "ai_enabled": true
@@ -433,25 +462,26 @@
       "title": "Port Scan Detection in Logs",
       "category": "siem",
       "module": "siem",
-      "description": "Identify port scanning activity from firewall deny logs.",
+      "description": "Identify port scanning activity from firewall deny logs in SIEM.",
       "vulnerability": "port_scan_logs",
       "difficulty": "medium",
       "track": "siem-logs",
+      "flag": "10.0.0.99",
       "steps": [
         {
-          "description": "Load the firewall deny logs.",
-          "command": "siem --firewall",
-          "notes": "View blocked connection attempts."
+          "description": "Start the SIEM simulator and load firewall deny logs.",
+          "command": "siem",
+          "notes": "Inside the shell, type 'firewall' to view blocked connection attempts."
         },
         {
-          "description": "Filter for SYN packets to many ports.",
-          "command": "siem --filter deny",
-          "notes": "Show only denied connections."
+          "description": "Filter for denied connections.",
+          "command": "firewall",
+          "notes": "Then type 'filter deny' to show only denied connection attempts."
         },
         {
           "description": "Identify the scanning source.",
-          "command": "siem --analyze scan",
-          "notes": "Find the IP performing the port scan."
+          "command": "filter deny",
+          "notes": "Then type 'analyze scan' to find the IP performing the port scan."
         }
       ],
       "ai_enabled": true
@@ -465,21 +495,22 @@
       "vulnerability": "privilege_escalation",
       "difficulty": "hard",
       "track": "siem-logs",
+      "flag": "user1",
       "steps": [
         {
-          "description": "Load the admin event logs.",
-          "command": "siem --admin",
-          "notes": "View administrative action logs."
+          "description": "Start the SIEM simulator and load admin event logs.",
+          "command": "siem",
+          "notes": "Inside the shell, type 'admin' to view administrative action logs."
         },
         {
           "description": "Filter for sudo or elevation events.",
-          "command": "siem --filter sudo",
-          "notes": "Show privilege escalation attempts."
+          "command": "admin",
+          "notes": "Then type 'filter sudo' to show privilege escalation attempts."
         },
         {
           "description": "Identify unauthorized elevation.",
-          "command": "siem --analyze escalate",
-          "notes": "Find unexpected privilege changes."
+          "command": "filter sudo",
+          "notes": "Then type 'analyze escalate' to find unexpected privilege changes from non-admin users."
         }
       ],
       "ai_enabled": true
@@ -489,25 +520,26 @@
       "title": "Network Port Scanning with Nmap",
       "category": "network",
       "module": "nmap",
-      "description": "Scan a target host for open ports and services.",
+      "description": "Scan a target host for open ports and services using the Nmap simulator.",
       "vulnerability": "port_discovery",
       "difficulty": "easy",
       "track": "network-security",
+      "flag": "open ports and services",
       "steps": [
         {
-          "description": "Start the Nmap simulator and list targets.",
+          "description": "Start the Nmap simulator.",
           "command": "nmap",
           "notes": "Inside the shell, type 'scan 192.168.1.10' to scan a target."
         },
         {
-          "description": "Scan a target host.",
+          "description": "Scan a target host for open ports.",
           "command": "scan 192.168.1.10",
-          "notes": "View open ports and services."
+          "notes": "View open ports, services, products, and versions."
         },
         {
-          "description": "Check OS fingerprint.",
+          "description": "Check the OS fingerprint guess.",
           "command": "os",
-          "notes": "Identify the target operating system."
+          "notes": "Identify the target operating system from the scan results."
         }
       ],
       "ai_enabled": true
@@ -521,16 +553,22 @@
       "vulnerability": "service_disclosure",
       "difficulty": "medium",
       "track": "network-security",
+      "flag": "service versions",
       "steps": [
         {
-          "description": "Scan specific ports.",
-          "command": "scan 192.168.1.10 --ports 22,80,443",
-          "notes": "Scan only common service ports."
+          "description": "Start the Nmap simulator.",
+          "command": "nmap",
+          "notes": "Inside the shell, type 'scan 192.168.1.10 --ports 22,80,443'."
         },
         {
-          "description": "List open ports.",
+          "description": "Scan specific common service ports.",
+          "command": "scan 192.168.1.10 --ports 22,80,443",
+          "notes": "Scan only SSH, HTTP, and HTTPS ports for focused enumeration."
+        },
+        {
+          "description": "List open ports with version info.",
           "command": "ports",
-          "notes": "View detailed port and version info."
+          "notes": "View detailed port, service, product, and version information."
         }
       ],
       "ai_enabled": true
@@ -540,20 +578,26 @@
       "title": "OS Fingerprinting",
       "category": "network",
       "module": "nmap",
-      "description": "Identify the operating system of a target host.",
+      "description": "Identify the operating system of a target host from scan results.",
       "vulnerability": "os_disclosure",
       "difficulty": "hard",
       "track": "network-security",
+      "flag": "OS guess",
       "steps": [
+        {
+          "description": "Start the Nmap simulator.",
+          "command": "nmap",
+          "notes": "Inside the shell, type 'scan 192.168.1.10 --ports 1-1000'."
+        },
         {
           "description": "Scan a target for OS details.",
           "command": "scan 192.168.1.10 --ports 1-1000",
-          "notes": "Full port scan for better OS detection."
+          "notes": "Full port scan provides better OS fingerprinting data."
         },
         {
-          "description": "Check OS guess.",
+          "description": "Check the OS guess from results.",
           "command": "os",
-          "notes": "View the OS fingerprint guess."
+          "notes": "View the operating system fingerprint guess from the scan."
         }
       ],
       "ai_enabled": true
@@ -563,10 +607,11 @@
       "title": "Automated SQL Injection with SQLmap",
       "category": "web",
       "module": "sqlmap",
-      "description": "Use automated tooling to detect and exploit SQL injection.",
+      "description": "Use automated tooling to detect and exploit SQL injection vulnerabilities.",
       "vulnerability": "sql_injection_auto",
       "difficulty": "medium",
       "track": "web-security",
+      "flag": "UNION-based SQL injection",
       "steps": [
         {
           "description": "Start the SQLmap simulator.",
@@ -574,14 +619,14 @@
           "notes": "Inside the shell, type 'scan http://lab.local/search?q=test'."
         },
         {
-          "description": "Scan for SQL injection.",
+          "description": "Scan the target for SQL injection.",
           "command": "scan http://lab.local/search?q=test",
-          "notes": "Test the target for injection vulnerabilities."
+          "notes": "Test the target URL for injection vulnerabilities in the q parameter."
         },
         {
-          "description": "View payloads.",
+          "description": "View detected payloads and techniques.",
           "command": "payload",
-          "notes": "See detected injection payloads."
+          "notes": "See the injection payloads, evidence, and techniques detected."
         }
       ],
       "ai_enabled": true
@@ -591,10 +636,11 @@
       "title": "Password Brute-Force with Hydra",
       "category": "auth",
       "module": "hydra",
-      "description": "Simulate password brute-force attacks against SSH/HTTP/FTP.",
+      "description": "Simulate password brute-force attacks against SSH/HTTP/FTP services.",
       "vulnerability": "weak_credentials",
       "difficulty": "medium",
       "track": "authentication-security",
+      "flag": "cracked credential",
       "steps": [
         {
           "description": "Start the Hydra simulator.",
@@ -602,9 +648,9 @@
           "notes": "Inside the shell, type 'crack 192.168.1.10 ssh admin'."
         },
         {
-          "description": "Attempt password crack.",
+          "description": "Attempt password crack against the target.",
           "command": "crack 192.168.1.10 ssh admin",
-          "notes": "Try common passwords against the target."
+          "notes": "Try common passwords against admin over SSH."
         }
       ],
       "ai_enabled": true
@@ -618,6 +664,7 @@
       "vulnerability": "web_misconfiguration",
       "difficulty": "easy",
       "track": "web-security",
+      "flag": "web server findings",
       "steps": [
         {
           "description": "Start the Nikto simulator.",
@@ -625,14 +672,14 @@
           "notes": "Inside the shell, type 'scan http://lab.local'."
         },
         {
-          "description": "Scan the web target.",
+          "description": "Scan the web target for vulnerabilities.",
           "command": "scan http://lab.local",
-          "notes": "View web server vulnerabilities."
+          "notes": "View detected web server vulnerabilities and misconfigurations."
         },
         {
-          "description": "View findings.",
+          "description": "View all findings.",
           "command": "findings",
-          "notes": "List all detected issues."
+          "notes": "List all detected issues with severity levels."
         }
       ],
       "ai_enabled": true
@@ -642,10 +689,11 @@
       "title": "Cookie Security Analysis",
       "category": "web",
       "module": "cookie",
-      "description": "Analyze cookies for security issues (session fixation, predictable values, excessive length).",
+      "description": "Analyze cookies for security issues including missing flags and predictable values.",
       "vulnerability": "insecure_cookie",
       "difficulty": "easy",
       "track": "web-security",
+      "flag": "missing security flags",
       "steps": [
         {
           "description": "Start the cookie scanner.",
@@ -653,14 +701,14 @@
           "notes": "Inside the shell, type 'scan session=abc123; track=xyz'."
         },
         {
-          "description": "Analyze cookies for issues.",
+          "description": "Analyze cookies with security flags.",
           "command": "scan \"session=admin; sessionid=1234; pref=dark\"",
-          "notes": "Review flagged issues per cookie."
+          "notes": "Review flagged issues per cookie - missing HttpOnly, Secure, SameSite."
         },
         {
           "description": "View only issues.",
           "command": "issues",
-          "notes": "Filter to show only problematic cookies."
+          "notes": "Filter to show only problematic cookies with security issues."
         }
       ],
       "ai_enabled": true
@@ -674,6 +722,7 @@
       "vulnerability": "web_misconfiguration",
       "difficulty": "easy",
       "track": "web-security",
+      "flag": "missing headers and exposed dirs",
       "steps": [
         {
           "description": "Start the web scanner.",
@@ -681,19 +730,19 @@
           "notes": "Inside the shell, type 'scan http://lab.local'."
         },
         {
-          "description": "Scan the web target.",
+          "description": "Scan the web target for security issues.",
           "command": "scan http://lab.local",
-          "notes": "View security headers, technologies, and directories."
+          "notes": "View security headers, technologies detected, and exposed directories."
         },
         {
-          "description": "Check missing headers.",
+          "description": "Check missing security headers.",
           "command": "headers",
-          "notes": "See which security headers are missing."
+          "notes": "See which critical security headers are missing from the response."
         },
         {
           "description": "View exposed directories.",
           "command": "dirs",
-          "notes": "List sensitive directories found."
+          "notes": "List sensitive directories and files found on the server."
         }
       ],
       "ai_enabled": true
@@ -707,6 +756,7 @@
       "vulnerability": "information_disclosure",
       "difficulty": "easy",
       "track": "osint",
+      "flag": "DNS records and subdomains",
       "steps": [
         {
           "description": "Start the OSINT simulator.",
@@ -714,14 +764,14 @@
           "notes": "Inside the shell, type 'scan example.com --type domain'."
         },
         {
-          "description": "Look up DNS records.",
+          "description": "Look up DNS records for the domain.",
           "command": "scan example.com --type domain",
-          "notes": "View A, MX, TXT, and NS records."
+          "notes": "View A, MX, TXT, and NS records for the target domain."
         },
         {
           "description": "List discovered subdomains.",
           "command": "scan example.com --type domain",
-          "notes": "Review the subdomains section of the output."
+          "notes": "Review the subdomains section of the output for discovered subdomains."
         }
       ],
       "ai_enabled": true
@@ -735,6 +785,7 @@
       "vulnerability": "information_disclosure",
       "difficulty": "easy",
       "track": "osint",
+      "flag": "platform presence",
       "steps": [
         {
           "description": "Start the OSINT simulator.",
@@ -744,7 +795,7 @@
         {
           "description": "Check username across platforms.",
           "command": "scan jdoe --type username",
-          "notes": "Review which platforms show 'EXISTS'."
+          "notes": "Review which platforms show 'EXISTS' for the username."
         }
       ],
       "ai_enabled": true
