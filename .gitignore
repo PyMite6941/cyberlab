@@ -15,7 +15,6 @@ ENV/
 
 # Build / distribution artifacts
 build/
-dist/
 *.egg-info/
 *.egg
 .eggs/
