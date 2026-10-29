@@ -467,6 +467,7 @@ def main(argv=None) -> int:
     parser.add_argument("--install-tools", action="store_true", help="Also install real system tools (wireshark, nmap, sqlmap, hydra, nikto, burpsuite).")
     parser.add_argument("--clone-repos", action="store_true", help="Clone GitHub repos for tools into src/tools/.")
     parser.add_argument("--tools", nargs="*", default=[], help="Specific tools to install (wireshark nmap sqlmap hydra nikto burpsuite).")
+    parser.add_argument("--mode", choices=["binary", "python", "both"], default="both", help="Install mode: binary (dist/ single-file only), python (venv + source only), or both (default).")
     args = parser.parse_args(argv)
 
     uv = find_uv()
@@ -547,7 +548,10 @@ def main(argv=None) -> int:
         return rc
 
     log("")
-    log("Install complete. Run:  python -m src.terminal   (or ./run.sh / run.bat)")
+    log("Install complete.")
+    log("  Run via the cyberlab command:  ./cyberlab.sh   (or cyberlab.bat on Windows)")
+    log("  Binary mode:                   ./cyberlab.sh --binary")
+    log("  Python/source mode:            ./cyberlab.sh --python")
     if results:
         not_installed = [t for t, ok in results.items() if not ok]
         if not_installed:
