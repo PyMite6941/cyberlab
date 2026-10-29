@@ -258,7 +258,13 @@ def clone_repo(repo_url: str, dest: Path) -> bool:
 
 
 def install_real_tools(tools: list[str], os_name: str) -> dict[str, bool]:
-    """Install the requested real tools. Returns dict of tool -> installed."""
+    """Install the requested real tools.
+
+    Returns dict of tool -> installed. A tool is only marked installed if its
+    executable is actually found on disk *after* the install attempt -- a
+    package manager returning 0 is not enough (it may succeed but not place
+    the binary on PATH or in the expected location).
+    """
     results: dict[str, bool] = {}
     for tool in tools:
         log(f"Checking {tool} ...")
@@ -268,12 +274,15 @@ def install_real_tools(tools: list[str], os_name: str) -> dict[str, bool]:
             results[tool] = True
             continue
         log(f"  not found; attempting install ...")
-        ok = install_tool(tool, os_name)
-        results[tool] = ok
-        if ok:
-            exe = find_tool_exe(tool)
-            if exe:
-                log(f"  now available at {exe}")
+        install_tool(tool, os_name)
+        # Always verify the executable is actually present after install.
+        exe = find_tool_exe(tool)
+        if exe:
+            log(f"  now available at {exe}")
+            results[tool] = True
+        else:
+            log(f"  FAILED: {tool} is still not available after install attempt")
+            results[tool] = False
     return results
 
 
@@ -363,13 +372,45 @@ def download_tutorials(desired: bool) -> None:
         log("WARNING: no tutorial data found to bundle.")
 
 
-def verify(uv: str, venv_py: str) -> int:
+def verify_tools(tools: list[str]) -> list[str]:
+    """Return the list of tools whose executables are NOT actually found.
+
+    A tool counts as installed only if find_tool_exe() locates its binary on
+    disk. This is the authoritative check -- package manager return codes are
+    not trusted.
+    """
+    missing: list[str] = []
+    for tool in tools:
+        exe = find_tool_exe(tool)
+        if not exe:
+            missing.append(tool)
+    return missing
+
+
+def verify(uv: str, venv_py: str, tools: list[str] | None = None) -> int:
     log("Verifying install: `cyberterminal` imports correctly")
     run([uv, "pip", "install", "--python", venv_py, "-e", str(ROOT)])
-    return run([
+    rc = run([
         venv_py, "-c",
         "from src.terminal import CyberTerminal, main; print('cyberterminal OK')",
     ])
+    if rc != 0:
+        return rc
+
+    if tools:
+        log("Verifying real tools are actually installed ...")
+        missing = verify_tools(tools)
+        for tool in tools:
+            exe = find_tool_exe(tool)
+            status = "INSTALLED" if exe else "NOT FOUND"
+            path = f" ({exe})" if exe else ""
+            log(f"  {tool:<12} {status}{path}")
+        if missing:
+            log("")
+            log(f"ERROR: These requested tools are still not installed: {', '.join(missing)}")
+            log("Install them manually or re-run with --install-tools after installing the missing packages.")
+            return 1
+    return 0
 
 
 def print_tool_report(results: dict[str, bool]) -> None:
@@ -467,7 +508,7 @@ def main(argv=None) -> int:
     if clone_repos_flag:
         clone_repos(tool_list)
 
-    rc = verify(uv, vp)
+    rc = verify(uv, vp, tool_list if install_real else None)
     if rc != 0:
         return rc
 
