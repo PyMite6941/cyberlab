@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # cyberterminal - macOS / Linux / Windows (git-bash) wrapper
-# Detect OS and use the correct venv python path.
+# Prefers the single-file binary in dist/ if present, falls back to the venv.
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BINARY="$ROOT_DIR/dist/cyberterminal"
+
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-    VENV_PY=".venv/Scripts/python.exe"
+    BINARY="$ROOT_DIR/dist/cyberterminal.exe"
+    VENV_PY="$ROOT_DIR/.venv/Scripts/python.exe"
 else
-    VENV_PY=".venv/bin/python"
+    VENV_PY="$ROOT_DIR/.venv/bin/python"
+fi
+
+if [ -x "$BINARY" ]; then
+    exec "$BINARY" "$@"
 fi
 
 if [ ! -x "$VENV_PY" ]; then
-    echo ".venv not found. Run ./install.sh first."
+    echo "No dist/cyberterminal binary and .venv not found. Run ./install.sh first."
     exit 1
 fi
 

@@ -202,45 +202,79 @@ def has_package_manager(pm: str) -> bool:
 
 
 def install_tool(tool: str, os_name: str) -> bool:
-    """Try to install a real tool via available package manager. Returns True if likely installed."""
+    """Try to install a real tool.
+
+    Falls back through package managers (winget -> choco -> brew -> dnf -> apt),
+    then to cloning the tool's GitHub repo into src/tools/<tool>/, then to a
+    final on-disk check. Returns True only if the executable is actually found
+    after every attempt -- a package manager returning 0 is not enough.
+    """
     d = TOOL_DEFS.get(tool)
     if not d:
         log(f"  no install definition for {tool}")
-        return False
+        return find_tool_exe(tool) is not None
 
-    # Try winget (Windows)
-    if os_name == "windows" and d.get("winget") and has_package_manager("winget"):
-        log(f"  installing {tool} via winget ({d['winget']}) ...")
-        rc = run(["winget", "install", "--id", d["winget"], "--accept-package-agreements", "--accept-source-agreements"])
-        if rc == 0:
-            return True
-        log(f"  winget install failed for {tool} (rc={rc})")
-
-    # Try chocolatey (Windows)
-    if os_name == "windows" and d.get("choco") and has_package_manager("choco"):
-        log(f"  installing {tool} via chocolatey ({d['choco']}) ...")
-        rc = run(["choco", "install", d["choco"], "-y"])
-        if rc == 0:
-            return True
-        log(f"  choco install failed for {tool} (rc={rc})")
-
-    # Try brew (macOS / Linux)
+    # 1) Package managers, in order, skipping unavailable ones.
+    managers = []
+    if os_name == "windows":
+        if d.get("winget") and has_package_manager("winget"):
+            managers.append(
+                (
+                    "winget",
+                    [
+                        "winget",
+                        "install",
+                        "--id",
+                        d["winget"],
+                        "--accept-package-agreements",
+                        "--accept-source-agreements",
+                    ],
+                )
+            )
+        if d.get("choco") and has_package_manager("choco"):
+            managers.append(("choco", ["choco", "install", d["choco"], "-y"]))
     if d.get("brew") and has_package_manager("brew"):
-        log(f"  installing {tool} via brew ({d['brew']}) ...")
-        rc = run(["brew", "install", d["brew"]])
-        if rc == 0:
-            return True
-        log(f"  brew install failed for {tool} (rc={rc})")
+        managers.append(("brew", ["brew", "install", d["brew"]]))
+    if os_name == "linux":
+        if d.get("dnf") and has_package_manager("dnf"):
+            managers.append(("dnf", ["sudo", "dnf", "install", "-y", d["dnf"]]))
+        # dnf and apt often share package names; fall back to apt's name for dnf.
+        if not d.get("dnf") and d.get("apt") and has_package_manager("dnf"):
+            managers.append(("dnf", ["sudo", "dnf", "install", "-y", d["apt"]]))
+        if d.get("apt") and has_package_manager("apt"):
+            managers.append(("apt", ["sudo", "apt-get", "install", "-y", d["apt"]]))
 
-    # Try apt (Linux)
-    if os_name == "linux" and d.get("apt") and has_package_manager("apt"):
-        log(f"  installing {tool} via apt ({d['apt']}) ...")
-        rc = run(["sudo", "apt-get", "install", "-y", d["apt"]])
+    for name, cmd in managers:
+        log(f"  installing {tool} via {name} ...")
+        rc = run(cmd)
         if rc == 0:
-            return True
-        log(f"  apt install failed for {tool} (rc={rc})")
+            exe = find_tool_exe(tool)
+            if exe:
+                log(f"  now available at {exe}")
+                return True
+            log(f"  {name} reported success but {tool} binary not found on disk")
+        else:
+            log(f"  {name} install failed for {tool} (rc={rc})")
 
-    log(f"  could not auto-install {tool}; please install manually")
+    # 2) GitHub repo fallback: clone into src/tools/<tool>/ and check again.
+    if d.get("repo"):
+        dest = TOOLS_DIR / tool
+        log(f"  package managers failed; cloning {tool} from {d['repo']} into {dest}")
+        if clone_repo(d["repo"], dest):
+            exe = find_tool_exe(tool)
+            if exe:
+                log(f"  now available at {exe} (from cloned repo)")
+                return True
+            log(f"  repo cloned but {tool} executable still not found")
+        else:
+            log(f"  git clone failed for {tool}")
+
+    # 3) Next best thing: nothing left to try automatically.
+    exe = find_tool_exe(tool)
+    if exe:
+        log(f"  already available at {exe}")
+        return True
+    log(f"  could not auto-install {tool}; install it manually or add it to src/tools/{tool}/")
     return False
 
 
