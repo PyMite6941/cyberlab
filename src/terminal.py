@@ -387,7 +387,7 @@ class CyberTerminalGUI(cmd.Cmd):
             else:
                 self._writeln(f"Could not download docs for {tool} (may be offline-only).")
         elif parts[0] == "status":
-            status = "ONLINE" if is_online() else "OFFLINE"
+            status = "ONLINE" if is_online(refresh=True) else "OFFLINE"
             self._writeln(f"Network status: {status}")
             for tool in ["burp", "wireshark", "nmap", "sqlmap", "hydra", "nikto",
                          "cookie", "webscan", "osint", "auth", "siem"]:
@@ -438,7 +438,7 @@ class CyberTerminalGUI(cmd.Cmd):
 
     def do_osint(self, arg: str) -> None:
         """Launch simulated OSINT tool (online only)."""
-        if not is_online():
+        if not is_online(refresh=True):
             self._writeln("OSINT requires network access. You are currently OFFLINE.")
             self._writeln("Connect to the internet and try again.")
             return
