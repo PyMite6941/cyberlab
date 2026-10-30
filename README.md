@@ -34,6 +34,8 @@ shell:
 
 ```
 student@cyberlab:~$ help
+student@cyberlab:~$ ls             # read-only lab filesystem: ls, ll, cd, pwd, cat
+student@cyberlab:~$ cat README.txt
 student@cyberlab:~$ tutorials
 student@cyberlab:~$ tutorial burp-basics
 student@cyberlab:~$ labs
