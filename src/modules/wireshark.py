@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import argparse
 import cmd
+import ipaddress
 import random
+import re
 import shlex
 import struct
 from dataclasses import dataclass, field
@@ -52,6 +54,18 @@ class Packet:
     length: int
     info: str
     raw: bytes = field(repr=False)
+    tcp_flags: Optional[str] = None  # e.g. "SYN" or "SYN,ACK" for TCP
+    dns_query: Optional[str] = None  # queried name for DNS
+
+    def __post_init__(self) -> None:
+        # The display filters read these. Fill them in from the info text the
+        # generators write ("SYN 51514>80", "Standard query example.com A").
+        words = self.info.split()
+        if self.tcp_flags is None and self.protocol == "TCP" and words:
+            self.tcp_flags = words[0]
+        if (self.dns_query is None and self.protocol == "DNS"
+                and self.info.startswith("Standard query ") and len(words) > 2):
+            self.dns_query = words[2]
 
     def time_delta(self, prev: Optional["Packet"]) -> str:
         if prev is None:
@@ -182,6 +196,185 @@ def write_pcap(path: str, packets: List[Packet]) -> None:
             f.write(struct.pack("<IIII", ts_sec, ts_usec,
                                 len(p.raw), len(p.raw)))
             f.write(p.raw)
+
+
+# ---------------------------------------------------------------------------
+# Display filters (a subset of real Wireshark syntax)
+# ---------------------------------------------------------------------------
+#
+#   dns   tcp   udp   http   icmp   arp   ip   eth     protocols
+#   ip.addr == 10.0.0.99   ip.src   ip.dst   (ip.addr == 192.168.1.0/24)
+#   tcp.port == 80   tcp.srcport   tcp.dstport   udp.port ...
+#   tcp.flags.syn == 1   tcp.flags.ack   tcp.flags.fin   tcp.flags.reset
+#   dns.qry.name contains "example"   frame.len > 100   eth.addr / eth.src / eth.dst
+#   operators: == != > < >= <= (or eq ne gt lt ge le), contains
+#   logic: and && or || not ! ( )
+#
+# The old proto==TCP, ip==x and port==n filters still work.
+
+# Protocol layers each packet type carries, so `tcp` also matches HTTP and
+# `udp` also matches DNS, as in Wireshark.
+LAYERS = {
+    "HTTP": {"eth", "ip", "tcp", "http"},
+    "TCP": {"eth", "ip", "tcp"},
+    "DNS": {"eth", "ip", "udp", "dns"},
+    "UDP": {"eth", "ip", "udp"},
+    "ICMP": {"eth", "ip", "icmp"},
+    "ARP": {"eth", "arp"},
+}
+PROTOCOLS = {"frame", "eth", "ip", "tcp", "udp", "http", "dns", "icmp", "arp"}
+NUMERIC_FIELDS = {
+    "frame.len", "tcp.port", "tcp.srcport", "tcp.dstport", "udp.port", "udp.srcport",
+    "udp.dstport", "tcp.flags.syn", "tcp.flags.ack", "tcp.flags.fin", "tcp.flags.reset",
+}
+FIELDS = NUMERIC_FIELDS | {"eth.addr", "eth.src", "eth.dst", "ip.addr", "ip.src", "ip.dst", "dns.qry.name"}
+OPERATORS = {"==": "==", "eq": "==", "!=": "!=", "ne": "!=", ">": ">", "gt": ">", "<": "<",
+             "lt": "<", ">=": ">=", "ge": ">=", "<=": "<=", "le": "<=", "contains": "contains"}
+_TOKEN = re.compile(r'\s*(==|!=|>=|<=|&&|\|\||[()!<>]|"[^"]*"|[A-Za-z0-9_.:/\-]+)')
+
+
+class FilterError(ValueError):
+    """An invalid display filter, with a Wireshark-style message."""
+
+
+def _field_values(p: "Packet", name: str) -> Optional[list]:
+    """Values of a field in a packet, or None if the packet doesn't have it."""
+    layers = LAYERS.get(p.protocol, set()) | {"frame"}
+    if name.split(".")[0] not in layers:
+        return None
+    flags = (p.tcp_flags or "").split(",")
+    values = {
+        "frame.len": [p.length],
+        "eth.addr": [p.src_mac, p.dst_mac], "eth.src": [p.src_mac], "eth.dst": [p.dst_mac],
+        "ip.addr": [p.src_ip, p.dst_ip], "ip.src": [p.src_ip], "ip.dst": [p.dst_ip],
+        "tcp.port": [p.src_port, p.dst_port], "tcp.srcport": [p.src_port], "tcp.dstport": [p.dst_port],
+        "udp.port": [p.src_port, p.dst_port], "udp.srcport": [p.src_port], "udp.dstport": [p.dst_port],
+        "tcp.flags.syn": [int("SYN" in flags)], "tcp.flags.ack": [int("ACK" in flags)],
+        "tcp.flags.fin": [int("FIN" in flags)], "tcp.flags.reset": [int("RST" in flags)],
+        "dns.qry.name": [p.dns_query] if p.dns_query else [],
+    }
+    if name in PROTOCOLS:
+        return [True]
+    return values.get(name)
+
+
+def _compare(field: str, values: list, op: str, raw: str) -> bool:
+    if field in NUMERIC_FIELDS:
+        try:
+            want = int(raw, 0)
+        except ValueError:
+            raise FilterError(f'"{raw}" is not a valid number for {field}.')
+    elif field in ("ip.addr", "ip.src", "ip.dst") and "/" in raw:
+        try:
+            net = ipaddress.ip_network(raw, strict=False)
+        except ValueError:
+            raise FilterError(f'"{raw}" is not a valid IPv4 network.')
+        hit = any(ipaddress.ip_address(v) in net for v in values)
+        return hit if op == "==" else not hit if op == "!=" else _bad_op(op, field)
+    else:
+        want = raw.lower()
+        values = [str(v).lower() for v in values]
+    if op == "contains":
+        return any(str(want) in str(v) for v in values)
+    if op == "==":
+        return any(v == want for v in values)
+    if op == "!=":
+        return not any(v == want for v in values)  # Wireshark 3.6+: a != b is !(a == b)
+    if field not in NUMERIC_FIELDS:
+        return _bad_op(op, field)
+    return any({">": v > want, "<": v < want, ">=": v >= want, "<=": v <= want}[op] for v in values)
+
+
+def _bad_op(op: str, field: str) -> bool:
+    raise FilterError(f'{field} cannot be compared with "{op}".')
+
+
+def compile_filter(expr: str):
+    """Parse a display filter into a function Packet -> bool.
+
+    Raises FilterError with a Wireshark-style message for invalid filters.
+    """
+    pos, tokens = 0, []
+    expr = expr.strip()
+    while pos < len(expr):
+        m = _TOKEN.match(expr, pos)
+        if not m or not m.group(1):
+            raise FilterError(f'"{expr[pos:].strip()}" was unexpected in this context.')
+        tokens.append(m.group(1))
+        pos = m.end()
+    if not tokens:
+        raise FilterError("Empty filter.")
+    i = 0
+
+    def peek():
+        return tokens[i] if i < len(tokens) else None
+
+    def take():
+        nonlocal i
+        if i >= len(tokens):
+            raise FilterError("Unexpected end of filter.")
+        i += 1
+        return tokens[i - 1]
+
+    def parse_or():
+        left = parse_and()
+        while peek() in ("or", "||"):
+            take()
+            right = parse_and()
+            left = (lambda a, b: lambda p: a(p) or b(p))(left, right)
+        return left
+
+    def parse_and():
+        left = parse_not()
+        while peek() in ("and", "&&"):
+            take()
+            right = parse_not()
+            left = (lambda a, b: lambda p: a(p) and b(p))(left, right)
+        return left
+
+    def parse_not():
+        if peek() in ("not", "!"):
+            take()
+            inner = parse_not()
+            return lambda p: not inner(p)
+        return parse_primary()
+
+    def parse_primary():
+        tok = take()
+        if tok == "(":
+            inner = parse_or()
+            if take() != ")":
+                raise FilterError('Missing ")".')
+            return inner
+        name = tok
+        if peek() in OPERATORS:
+            op = OPERATORS[take()]
+            raw = take().strip('"')
+        else:
+            op = raw = None
+        # The simulator's original filters: proto==TCP, ip==x, port==n
+        if name in ("proto", "ip", "port") and op == "==":
+            if name == "proto":
+                return lambda p: p.protocol.lower() == raw.lower()
+            if name == "ip":
+                return lambda p: raw in (p.src_ip, p.dst_ip)
+            return lambda p: str(p.src_port) == raw or str(p.dst_port) == raw
+        if name not in FIELDS and name not in PROTOCOLS:
+            raise FilterError(f'"{name}" is neither a field nor a protocol name.')
+        if op is None:
+            return lambda p: bool(_field_values(p, name))
+        # Check the value once up front so a bad one is reported even with no packets.
+        _compare(name, [], op, raw)
+
+        def match(p):
+            values = _field_values(p, name)
+            return bool(values) and _compare(name, values, op, raw)
+        return match
+
+    predicate = parse_or()
+    if i != len(tokens):
+        raise FilterError(f'"{tokens[i]}" was unexpected in this context.')
+    return predicate
 
 
 # ---------------------------------------------------------------------------
@@ -404,16 +597,23 @@ class WiresharkShell(cmd.Cmd):
         self._print_table(self.filtered)
 
     def do_list(self, arg: str) -> None:
-        """List packets with optional display filter.
+        """List packets, optionally through a Wireshark display filter.
 
         usage: list
-        usage: list proto==HTTP
-        usage: list ip==192.168.1.10
-        usage: list port==80
-        usage: list proto==HTTP and port==80
+        usage: list dns
+        usage: list ip.addr == 10.0.0.99
+        usage: list tcp.port == 80 || udp.port == 53
+        usage: list tcp.flags.syn == 1 && tcp.flags.ack == 0
+        usage: list dns.qry.name contains "example"
+        usage: list frame.len > 100 and not arp
+        (the older proto==TCP, ip==x and port==n still work)
         """
         if arg:
-            self.filtered = self._apply_filter(arg)
+            try:
+                self.filtered = self._apply_filter(arg)
+            except FilterError as e:
+                print(f"Invalid filter: {e}")
+                return
             print(f"Filter '{arg}': {len(self.filtered)} packet(s)")
         else:
             self.filtered = list(self.packets)
@@ -496,25 +696,9 @@ class WiresharkShell(cmd.Cmd):
         pass
 
     def _apply_filter(self, expr: str) -> List[Packet]:
-        results = []
-        for p in self.packets:
-            ok = True
-            for term in expr.split(" and "):
-                term = term.strip()
-                if term.startswith("proto=="):
-                    val = term.split("==", 1)[1]
-                    ok = ok and p.protocol == val
-                elif term.startswith("ip=="):
-                    val = term.split("==", 1)[1]
-                    ok = ok and (p.src_ip == val or p.dst_ip == val)
-                elif term.startswith("port=="):
-                    val = int(term.split("==", 1)[1])
-                    ok = ok and (p.src_port == val or p.dst_port == val)
-                else:
-                    ok = False
-            if ok:
-                results.append(p)
-        return results
+        """Packets matching a display filter. Raises FilterError if it's invalid."""
+        matches = compile_filter(expr)
+        return [p for p in self.packets if matches(p)]
 
     def _print_table(self, packets: List[Packet]) -> None:
         print(f"{'No.':<5} {'Time':<12} {'Source':<18} {'Destination':<18} "

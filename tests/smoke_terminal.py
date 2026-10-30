@@ -6,6 +6,7 @@ shells the way the windows do, one line at a time, and checks:
 - tool commands and `run <lab>` open the right tool window
 - a fresh install starts with no progress, and `submit` records progress
 - the simulator detection / cracking fixes
+- Wireshark display filters (dns, ip.addr == x, tcp.port == 80, ...)
 - the main window reads typed commands correctly (skipped with no display)
 
     python3 tests/smoke_terminal.py
@@ -121,6 +122,55 @@ check(analyze_scan(siem)["is_port_scan"], "siem finds the port scan")
 check(any(u == "user1" for u, _ in analyze_escalate(siem)["unexpected_users"]), "siem flags user1's sudo")
 check(run_sqlmap_test("http://lab.local/")["vulnerable_count"] == 0, "sqlmap: no parameters, nothing reported")
 check(run_sqlmap_test("http://lab.local/search?q=x")["vulnerable_count"] == 1, "sqlmap: reports the q parameter")
+
+# --- wireshark display filters ---
+from src.modules.wireshark import FilterError, WiresharkShell, compile_filter, generate_packets  # noqa: E402
+
+pk = generate_packets(80)
+
+
+def matching(expr):
+    keep = compile_filter(expr)
+    return [p for p in pk if keep(p)]
+
+
+def numbers(packets):
+    return {p.number for p in packets}
+
+
+dns_pk, tcp_pk = matching("dns"), matching("tcp")
+check(dns_pk and all(p.protocol == "DNS" for p in dns_pk), "filter dns")
+check(tcp_pk and all(p.protocol in ("TCP", "HTTP") for p in tcp_pk), "filter tcp (includes HTTP)")
+check(numbers(matching("http")) <= numbers(tcp_pk) and numbers(dns_pk) <= numbers(matching("udp")),
+      "filter layering: http is inside tcp, dns inside udp")
+hits = matching("ip.addr == 8.8.8.8")
+check(all("8.8.8.8" in (p.src_ip, p.dst_ip) and p.protocol != "ARP" for p in hits), "filter ip.addr == x")
+hits = matching("ip.addr == 10.0.0.0/8")
+check(hits and all(p.src_ip.startswith("10.") or p.dst_ip.startswith("10.") for p in hits), "filter ip.addr with CIDR")
+hits = matching("tcp.port == 80")
+check(all(80 in (p.src_port, p.dst_port) and p.protocol in ("TCP", "HTTP") for p in hits), "filter tcp.port == 80")
+check(len(matching("not arp")) == len(pk) - len(matching("arp")), "filter not arp")
+hits = matching("tcp.flags.syn == 1 && tcp.flags.ack == 0")
+check(all(p.tcp_flags == "SYN" for p in hits), "filter SYN-only packets")
+hits = matching('dns.qry.name contains "example"')
+check(all("example" in p.dns_query for p in hits), "filter dns.qry.name contains")
+check(all(p.length > 100 for p in matching("frame.len > 100")), "filter frame.len > 100")
+check(all(p.protocol in ("DNS", "ICMP") and p.length >= 60 for p in matching("(dns || icmp) and frame.len >= 60")),
+      "filter with parentheses and mixed operators")
+check(all(p.protocol == "TCP" for p in matching("proto==TCP")), "old proto==TCP still works")
+for bad, says in (("foo", "neither a field nor a protocol name"), ("tcp.port == abc", "not a valid number"),
+                  ("ip.addr > 1.2.3.4", "cannot be compared"), ("(dns", "")):
+    try:
+        compile_filter(bad)
+        check(False, f"invalid filter rejected: {bad}")
+    except FilterError as e:
+        check(says in str(e), f"invalid filter rejected: {bad} ({e})")
+ws = WiresharkShell()
+terminal.run_tool_line(ws, "scan --packets 40")
+text, _ = terminal.run_tool_line(ws, "list dns")
+check("Filter 'dns'" in text, "wireshark window: list dns")
+text, _ = terminal.run_tool_line(ws, "list bogus")
+check("Invalid filter" in text, "wireshark window: a bad filter is explained")
 
 # --- main window: typed commands are read and echoed once ---
 import time  # noqa: E402
