@@ -39,6 +39,10 @@ def log(msg: str) -> None:
 
 def run(cmd: list[str], **kwargs) -> int:
     log("$ " + " ".join(cmd))
+    capture = kwargs.pop("capture_output", False)
+    if capture:
+        p = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+        return p.returncode
     return subprocess.call(cmd, **kwargs)
 
 
@@ -56,6 +60,28 @@ def find_uv() -> str:
     if cand.exists():
         return str(cand)
     raise SystemExit("uv not found on PATH. Install uv first: https://github.com/astral-sh/uv")
+
+
+def ensure_uv_in_venv(uv: str, venv_py: str) -> str:
+    """Ensure uv is available inside the venv so the project works even
+    without a global uv installation. Returns the path to the venv's uv."""
+    venv_uv: str
+    if os.name == "nt":
+        venv_uv = str(Path(venv_py).parent / "uv.exe")
+    else:
+        venv_uv = str(Path(venv_py).parent / "uv")
+    # If uv already exists in the venv and runs, use it.
+    if Path(venv_uv).exists():
+        rc = run([venv_uv, "--version"], capture_output=True)
+        if rc == 0:
+            return venv_uv
+    # Otherwise install uv into the venv from the system uv.
+    log(f"Installing uv into venv at {venv_uv}")
+    rc = run([uv, "pip", "install", "--python", venv_py, "uv"])
+    if rc != 0:
+        log(f"WARNING: could not install uv into venv (rc={rc}); falling back to system uv")
+        return uv
+    return venv_uv
 
 
 def find_python() -> str:
@@ -337,8 +363,17 @@ def clone_repos(tools: list[str]) -> None:
 
 def create_venv(uv: str) -> None:
     if VENV_DIR.exists():
-        log(f"venv already exists at {VENV_DIR}")
-        return
+        # Verify the existing venv is functional before reusing it.
+        vp = venv_python(VENV_DIR)
+        if Path(vp).exists():
+            rc = run([vp, "--version"], capture_output=True)
+            if rc == 0:
+                log(f"venv already exists and is functional at {VENV_DIR}")
+                return
+            log(f"venv at {VENV_DIR} exists but python is broken; recreating")
+        else:
+            log(f"venv at {VENV_DIR} exists but python missing; recreating")
+        shutil.rmtree(VENV_DIR)
     log(f"Creating venv at {VENV_DIR}")
     rc = run([uv, "venv", str(VENV_DIR)])
     if rc != 0:
@@ -528,17 +563,21 @@ def main(argv=None) -> int:
     create_venv(uv)
     vp = venv_python(VENV_DIR)
 
+    # Ensure uv is available inside the venv so the project works even
+    # without a global uv installation.
+    venv_uv = ensure_uv_in_venv(uv, vp)
+
     if args.offline:
-        rc = pip_install_offline(uv, vp, WHEELS_DIR)
+        rc = pip_install_offline(venv_uv, vp, WHEELS_DIR)
         if rc != 0:
             return rc
     else:
-        rc = pip_install_online(uv, vp)
+        rc = pip_install_online(venv_uv, vp)
         if rc != 0:
             return rc
 
     if args.cache_wheels:
-        rc = cache_wheels(uv, vp)
+        rc = cache_wheels(venv_uv, vp)
         if rc != 0:
             return rc
 
@@ -558,7 +597,7 @@ def main(argv=None) -> int:
     if clone_repos_flag:
         clone_repos(tool_list)
 
-    rc = verify(uv, vp, tool_list if install_real else None)
+    rc = verify(venv_uv, vp, tool_list if install_real else None)
     if rc != 0:
         return rc
 
