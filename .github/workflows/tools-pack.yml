@@ -1,0 +1,34 @@
+# Builds the offline tools pack (v2/tools-pack) for Linux Mint 22.x, which is
+# Ubuntu 24.04 "noble" on amd64. Download it from the run's Artifacts.
+name: tools-pack
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "v2/tools-pack/**"
+      - ".github/workflows/tools-pack.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # A clean noble container, so the pack includes everything a stock
+    # install might lack, not just what's missing from the runner image.
+    container: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pack
+        run: bash v2/tools-pack/build.sh out
+      # install.sh reads only the pack (no internet sources), so this checks
+      # the pack is complete against a minimal noble system.
+      - name: Install from the pack, offline
+        run: |
+          tar xzf out/cyberlab-tools-noble-amd64.tar.gz -C /tmp
+          bash /tmp/cyberlab-tools-noble-amd64/install.sh
+          nmap --version | head -1
+          tshark --version | head -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyberlab-tools-noble-amd64
+          path: out/cyberlab-tools-noble-amd64.tar.gz
+          if-no-files-found: error

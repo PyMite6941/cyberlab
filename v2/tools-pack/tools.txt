@@ -1,0 +1,12 @@
+# Packages in the offline tools pack, one per line (Ubuntu 24.04 / Mint 22 names).
+# Everything each one depends on is bundled too.
+nmap            # port scanner
+tshark          # Wireshark on the command line: read and filter pcaps
+wireshark       # Wireshark GUI (the largest item: pulls in Qt)
+hydra           # login brute-forcer
+sqlmap          # SQL injection tool
+john            # John the Ripper password cracker
+nikto           # web server scanner (multiverse)
+gobuster        # directory / DNS brute-forcer
+curl            # HTTP client
+netcat-openbsd  # nc
