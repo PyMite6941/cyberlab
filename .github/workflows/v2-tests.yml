@@ -1,0 +1,35 @@
+# Tests for the v2 cyberlab CLI on the Pythons Linux Mint ships:
+# 3.12 (Mint 22) and 3.10 (Mint 21). Standard library only, no installs.
+name: v2-tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "v2/cyberlab/**"
+      - "v2/tests/**"
+      - "v2/bin/**"
+      - ".github/workflows/v2-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit and end-to-end tests
+        working-directory: v2
+        run: python3 -m unittest discover -s tests -v
+      - name: The launcher works from anywhere
+        env:
+          CYBERLAB_HOME: ${{ runner.temp }}/cyberlab
+        run: |
+          cd /tmp
+          "$GITHUB_WORKSPACE/v2/bin/cyberlab" --version
+          "$GITHUB_WORKSPACE/v2/bin/cyberlab" list

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Run cyberlab from this folder (./bin/cyberlab list), or through the link
+# setup.sh puts in ~/.local/bin (cyberlab list).
+DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+PYTHONPATH="$DIR${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m cyberlab "$@"
