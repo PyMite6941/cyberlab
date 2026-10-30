@@ -33,6 +33,7 @@ cyberlab start web-sqli            # starts the target and shows the goal
 cyberlab hint web-sqli             # one more hint each time
 cyberlab submit web-sqli FLAG{...} # check your answer
 cyberlab stop                      # stop every running target
+cyberlab report --name "Your Name" -o ~/Desktop/report.txt   # progress to hand in
 cyberlab reset                     # delete your workspace and progress
 ```
 
@@ -52,6 +53,15 @@ More are coming: see [DESIGN.md](DESIGN.md).
 
 ## For the teacher
 
+- **Collecting progress:** students run
+  `cyberlab report --name "Their Name" -o ~/Desktop/report.txt` and hand in the
+  file. It lists every challenge, when it was solved, and how many hints it took.
+  Add `--json` for a machine-readable version if you want to combine a class's
+  results.
+- **What a report can show:** it's a summary, not proof. Everything lives on the
+  student's machine, so a determined student could edit it. The **Workspace** ID
+  is a hash of that student's secret: two students handing in the same ID worked
+  in the same workspace. To be sure someone solved a challenge, ask them to show it.
 - Flags come from a random secret in each student's `~/cyberlab/.state.json`,
   so copying a classmate's flag doesn't work. The secret is on the student's
   machine, so this is a deterrent, not proof of work.

@@ -5,6 +5,7 @@
     cyberlab submit <id> <answer>   check an answer
     cyberlab hint <id>              next hint for a challenge
     cyberlab stop                   stop every running target
+    cyberlab report [-o FILE]       progress summary to hand in
     cyberlab reset                  stop targets and delete your workspace
 """
 
@@ -17,7 +18,7 @@ import sys
 import textwrap
 from typing import List, Optional
 
-from cyberlab import __version__, targets
+from cyberlab import __version__, report, targets
 from cyberlab.challenges import REGISTRY, Challenge, ordered
 from cyberlab.workspace import Workspace
 
@@ -111,6 +112,21 @@ def cmd_stop(ws: Workspace, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(ws: Workspace, args: argparse.Namespace) -> int:
+    data = report.build(ws, name=args.name)
+    text = report.as_json(data) if args.json else report.as_text(data)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"Saved your report to {args.output}")
+    else:
+        sys.stdout.write(text)
+    if not args.name:
+        print(f"(Reported as '{data['student']}'. Use --name \"Your Name\" if that's not you.)",
+              file=sys.stderr)
+    return 0
+
+
 def cmd_reset(ws: Workspace, args: argparse.Namespace) -> int:
     if not args.yes:
         reply = input(f"Delete {ws.home} and all your progress? Type 'yes' to confirm: ")
@@ -143,6 +159,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.set_defaults(func=cmd_hint)
     sub.add_parser("stop", help="stop every running target").set_defaults(func=cmd_stop)
+    p = sub.add_parser("report", help="progress summary to hand in")
+    p.add_argument("--name", help="your name as it should appear (default: your login name)")
+    p.add_argument("-o", "--output", metavar="FILE", help="save the report to FILE instead of printing it")
+    p.add_argument("--json", action="store_true", help="machine-readable JSON instead of text")
+    p.set_defaults(func=cmd_report)
     p = sub.add_parser("reset", help="stop targets and delete your workspace")
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
     p.set_defaults(func=cmd_reset)

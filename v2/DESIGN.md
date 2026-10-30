@@ -46,6 +46,6 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
    cleartext credentials, ARP spoofing).
 4. Log track: real log files for grep (SSH brute force, password spray,
    privilege escalation, web attacks in an access log).
-5. `cyberlab report` for the teacher.
+5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).
 
 v1 (the app at the repo root) stays as-is until v2 covers what the class uses.

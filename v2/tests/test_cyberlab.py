@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import getpass
+import json
 import os
 import re
 import shutil
@@ -23,7 +25,8 @@ from pathlib import Path
 V2 = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(V2))
 
-from cyberlab import targets  # noqa: E402
+from cyberlab import report, targets  # noqa: E402
+from cyberlab.challenges import REGISTRY  # noqa: E402
 from cyberlab.webapp import make_server  # noqa: E402
 from cyberlab.workspace import Workspace  # noqa: E402
 
@@ -175,6 +178,59 @@ class TestCli(TempHome):
         r = self.cyberlab("reset", "--yes")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.home / ".state.json").exists())
+
+
+class TestReport(TempHome):
+    def test_fresh_workspace(self):
+        data = report.build(Workspace(self.home), name="Alex P")
+        self.assertEqual((data["student"], data["solved"], data["total"]), ("Alex P", 0, len(REGISTRY)))
+        self.assertTrue(all(not c["solved"] and c["hints_used"] == 0 for c in data["challenges"]))
+
+    def test_solved_and_hints_are_reported(self):
+        ws = Workspace(self.home)
+        ws.record_hint("web-sqli", 99)  # more than exist: capped
+        ws.mark_solved("web-sqli")
+        row = next(c for c in report.build(ws)["challenges"] if c["id"] == "web-sqli")
+        self.assertTrue(row["solved"] and row["solved_at"])
+        self.assertEqual(row["hints_used"], row["hints_total"])
+        self.assertIn("Solved 1 of", report.as_text(report.build(ws)))
+
+    def test_default_name_is_the_login_name(self):
+        self.assertEqual(report.build(Workspace(self.home))["student"], getpass.getuser())
+
+    def test_workspace_id_is_stable_and_hides_the_secret(self):
+        ws = Workspace(self.home)
+        wid = report.workspace_id(ws)
+        self.assertRegex(wid, r"^[0-9a-f]{10}$")
+        self.assertEqual(report.workspace_id(Workspace(self.home)), wid)
+        other = Path(tempfile.mkdtemp(prefix="cyberlab-test-"))
+        self.addCleanup(shutil.rmtree, other, True)
+        self.assertNotEqual(report.workspace_id(Workspace(other)), wid)
+        data = report.build(ws)
+        for text in (report.as_text(data), report.as_json(data)):
+            self.assertNotIn(ws.state["secret"], text)
+            self.assertNotIn(ws.state["secret"][:10], text)
+            self.assertNotIn(ws.flag("web-sqli"), text)
+
+    def test_cli_report_text_json_and_file(self):
+        env = dict(os.environ, CYBERLAB_HOME=str(self.home), PYTHONPATH=str(V2))
+
+        def run(*args):
+            return subprocess.run([sys.executable, "-m", "cyberlab", "report", *args], env=env,
+                                  cwd=V2, capture_output=True, text=True, timeout=30)
+
+        r = run("--name", "Alex P")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Student:    Alex P", r.stdout)
+        self.assertIn("web-sqli", r.stdout)
+        self.assertNotIn("--name", r.stderr)
+
+        out = self.home / "alex.json"
+        r = run("--name", "Alex P", "--json", "-o", str(out))
+        self.assertIn(f"Saved your report to {out}", r.stdout)
+        self.assertEqual(json.loads(out.read_text())["student"], "Alex P")
+
+        self.assertIn("--name", run().stderr)  # no name given: says how to set one
 
 
 @unittest.skipUnless(Path("/proc/self").exists(), "needs /proc (Linux) to tell processes apart")
