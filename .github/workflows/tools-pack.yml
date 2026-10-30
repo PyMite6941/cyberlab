@@ -1,12 +1,18 @@
-# Builds the offline tools pack (v2/tools-pack) for Linux Mint 22.x, which is
-# Ubuntu 24.04 "noble" on amd64. Download it from the run's Artifacts.
+# Builds, for Linux Mint 22.x (Ubuntu 24.04 "noble", amd64):
+#   cyberlab-tools-noble-amd64.tar.gz  the offline tools pack (v2/tools-pack)
+#   cyberlab-class-noble-amd64.tar.gz  cyberlab v2 + the tools pack, one installer
+# Download them from the run's Artifacts. Pushing a tag like v2.0.0 also
+# publishes both as a GitHub Release.
 name: tools-pack
 
 on:
   workflow_dispatch:
   push:
+    branches: ["**"]
+    tags: ["v*"]  # path filters don't apply to tag pushes
     paths:
       - "v2/tools-pack/**"
+      - "v2/bundle/**"
       - ".github/workflows/tools-pack.yml"
 
 jobs:
@@ -17,7 +23,7 @@ jobs:
     container: ubuntu:24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Build pack
+      - name: Build tools pack
         run: bash v2/tools-pack/build.sh out
       # install.sh reads only the pack (no internet sources), so this checks
       # the pack is complete against a minimal noble system.
@@ -27,8 +33,61 @@ jobs:
           bash /tmp/cyberlab-tools-noble-amd64/install.sh
           nmap --version | head -1
           tshark --version | head -1
+      - name: Build class bundle
+        run: bash v2/bundle/build.sh out/cyberlab-tools-noble-amd64 out
+      - name: Check the class bundle installs cyberlab
+        run: |
+          apt-get install -y --no-install-recommends python3 >/dev/null
+          useradd -m student
+          tar xzf out/cyberlab-class-noble-amd64.tar.gz -C /home/student
+          chown -R student /home/student
+          su student -c 'cd ~/cyberlab-class-noble-amd64 && ./install.sh --skip-tools'
+          su student -c '~/.local/bin/cyberlab --version && ~/.local/bin/cyberlab list'
       - uses: actions/upload-artifact@v4
         with:
           name: cyberlab-tools-noble-amd64
           path: out/cyberlab-tools-noble-amd64.tar.gz
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyberlab-class-noble-amd64
+          path: out/cyberlab-class-noble-amd64.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          Offline bundle for the cyber class, for **Linux Mint 22.x** (Ubuntu 24.04 "noble", amd64). No internet needed.
+
+          **`cyberlab-class-noble-amd64.tar.gz`** has everything: the cyberlab practice range and the security tools (nmap, tshark, Wireshark, hydra, sqlmap, John the Ripper, nikto, gobuster, curl, netcat).
+
+          Copy it into the VM (shared folder or USB), then as your normal user:
+          ```bash
+          tar xzf cyberlab-class-noble-amd64.tar.gz
+          cd cyberlab-class-noble-amd64
+          ./install.sh        # asks for your sudo password once, for the tools
+          ```
+          Open a new terminal, then `cyberlab list`.
+
+          `cyberlab-tools-noble-amd64.tar.gz` is the tools on their own (`sudo ./install.sh`).
+
+          Each bundled package's license is in `tools/licenses/`.
+          NOTES
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          gh release create "$TAG" dist/*.tar.gz --repo "$GITHUB_REPOSITORY" \
+            --title "cyberlab $TAG" --notes-file notes.md $PRE
