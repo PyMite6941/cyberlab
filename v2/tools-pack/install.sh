@@ -36,7 +36,12 @@ case "$REPO" in
 esac
 
 LIST="$(mktemp --suffix=.list)"
-cleanup() { rm -f "$LIST"; [ -n "${TMP_REPO:-}" ] && rm -rf "$TMP_REPO"; }
+# An if, not `[ ... ] && ...`: the trap's last status becomes the script's exit
+# code, so a false test there made a successful install exit 1.
+cleanup() {
+    rm -f "$LIST"
+    if [ -n "${TMP_REPO:-}" ]; then rm -rf "$TMP_REPO"; fi
+}
 trap cleanup EXIT
 echo "deb [trusted=yes] file:$REPO ./" > "$LIST"
 
