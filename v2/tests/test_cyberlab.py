@@ -29,7 +29,7 @@ REPO_ROOT = V2.parent
 sys.path.insert(0, str(V2))
 
 from cyberlab import report, targets  # noqa: E402
-from cyberlab.challenges import REGISTRY  # noqa: E402
+from cyberlab.challenges import REGISTRY, ordered  # noqa: E402
 from cyberlab.webapp import make_server  # noqa: E402
 from cyberlab.workspace import Workspace  # noqa: E402
 
@@ -529,6 +529,54 @@ class TestIcmpChallenges(TempHome):
         self.assertTrue(c.check(Workspace(self.home), str(len(reflectors))))
         self.assertFalse(c.check(Workspace(self.home), str(len(reflectors) + 1)))
         self.assertFalse(c.check(Workspace(self.home), "lots"))
+
+
+class TestMenu(TempHome):
+    """The guided menu, driven the way a student types into it."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.env = dict(os.environ, CYBERLAB_HOME=str(self.home), PYTHONPATH=str(V2))
+        self.addCleanup(lambda: subprocess.run(
+            [sys.executable, "-m", "cyberlab", "stop"], env=self.env, cwd=V2,
+            capture_output=True, text=True, timeout=30))
+
+    def menu(self, keys: str):
+        return subprocess.run([sys.executable, "-m", "cyberlab", "menu"], input=keys,
+                              env=self.env, cwd=V2, capture_output=True, text=True, timeout=30)
+
+    def test_quit_shows_welcome_and_the_tracks(self):
+        r = self.menu("q\n")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Welcome to cyberlab", r.stdout)
+        self.assertIn("Web Application Security", r.stdout)
+        self.assertIn("Bye.", r.stdout)
+
+    def test_ctrl_d_quits(self):
+        r = self.menu("")  # empty stdin -> EOF at the first prompt
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("Bye.", r.stdout)
+
+    def test_bad_choice_is_rejected(self):
+        r = self.menu("zzz\nq\n")
+        self.assertIn("Please type a challenge number", r.stdout)
+
+    def test_open_and_solve_a_challenge(self):
+        order = [c.id for c in ordered()]
+        n = order.index("net-http-creds") + 1
+        pw = REGISTRY["net-http-creds"]._password(Workspace(self.home))
+        r = self.menu(f"{n}\ns\n{pw}\nq\n")
+        self.assertIn("Password in cleartext HTTP", r.stdout)   # opened it
+        self.assertIn("Correct! Challenge solved.", r.stdout)
+        # progress persisted
+        listing = subprocess.run([sys.executable, "-m", "cyberlab", "list"], env=self.env,
+                                 cwd=V2, capture_output=True, text=True, timeout=30).stdout
+        self.assertIn("[x] net-http-creds", listing)
+
+    def test_hint_is_shown_on_request(self):
+        n = [c.id for c in ordered()].index("web-sqli") + 1
+        r = self.menu(f"{n}\nh\nb\nq\n")
+        self.assertIn("Hint 1/", r.stdout)
 
 
 @unittest.skipUnless(Path("/proc/self").exists(), "needs /proc (Linux) to tell processes apart")

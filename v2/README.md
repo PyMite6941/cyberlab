@@ -27,7 +27,12 @@ Open a new terminal if it asks you to. Until then, `./bin/cyberlab` works the sa
 
 ## Use it
 
+New here? Just run `cyberlab` with no arguments for a guided menu that lists the
+challenges, opens one, shows its goal, gives hints, and takes your answer — no
+commands to memorize.
+
 ```bash
+cyberlab                           # guided menu (the easiest way to start)
 cyberlab list                      # challenges and your progress
 cyberlab start web-sqli            # starts the target and shows the goal
 cyberlab hint web-sqli             # one more hint each time
