@@ -124,16 +124,25 @@ DOCS_CATALOG: list[dict] = [
 ]
 
 
-def is_online(timeout: float = 2.0) -> bool:
-    """Check if network is available by attempting to connect to a reliable host.
+_online: Optional[bool] = None  # result of the last check
 
-    Returns True if the network appears to be online, False otherwise.
+
+def is_online(timeout: float = 2.0, refresh: bool = False) -> bool:
+    """Whether the network is reachable (a TCP connect to 1.1.1.1:53).
+
+    Checked once and remembered: the window's status bar calls this after
+    every command, and each call used to open a new connection (never
+    closed). Pass refresh=True to check again, as the docs and OSINT
+    commands do when the answer matters.
     """
-    try:
-        socket.create_connection(("1.1.1.1", 53), timeout=timeout)
-        return True
-    except OSError:
-        return False
+    global _online
+    if _online is None or refresh:
+        try:
+            with socket.create_connection(("1.1.1.1", 53), timeout=timeout):
+                _online = True
+        except OSError:
+            _online = False
+    return _online
 
 
 def get_docs_for_tool(tool: str) -> list[dict]:
@@ -151,7 +160,7 @@ def download_doc(doc: dict) -> bool:
 
     Returns True if download succeeded, False otherwise.
     """
-    if not is_online():
+    if not is_online(refresh=True):
         return False
     try:
         req = urllib.request.Request(

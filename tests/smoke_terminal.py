@@ -7,6 +7,7 @@ shells the way the windows do, one line at a time, and checks:
 - a fresh install starts with no progress, and `submit` records progress
 - the simulator detection / cracking fixes
 - Wireshark display filters (dns, ip.addr == x, tcp.port == 80, ...)
+- the online check runs once, closes its socket, and re-checks only on refresh
 - the main window reads typed commands correctly (skipped with no display)
 
     python3 tests/smoke_terminal.py
@@ -27,7 +28,8 @@ os.environ["CYBERTERMINAL_HOME"] = HOME  # keep real progress untouched
 
 import src.core.docs as docs  # noqa: E402
 
-docs.is_online = lambda timeout=2.0: False  # no network probe; patched before terminal imports it
+real_is_online = docs.is_online
+docs.is_online = lambda timeout=2.0, refresh=False: False  # no network probe; patched before terminal imports it
 
 
 def no_console(*args, **kwargs):
@@ -85,9 +87,9 @@ term, out = new_term()
 send(term, out, "nmap")
 send(term, out, "run burp-01")
 send(term, out, "osint")  # offline: refuses
-terminal.is_online = lambda timeout=2.0: True
+terminal.is_online = lambda timeout=2.0, refresh=False: True
 send(term, out, "osint")
-terminal.is_online = lambda timeout=2.0: False
+terminal.is_online = lambda timeout=2.0, refresh=False: False
 check(opened == ["nmap", "burp", "osint"], f"tool commands and run <lab> open tool windows ({opened})")
 
 # --- progress ---
@@ -171,6 +173,30 @@ text, _ = terminal.run_tool_line(ws, "list dns")
 check("Filter 'dns'" in text, "wireshark window: list dns")
 text, _ = terminal.run_tool_line(ws, "list bogus")
 check("Invalid filter" in text, "wireshark window: a bad filter is explained")
+
+# --- online check: once, socket closed, refresh on demand ---
+class FakeConn:
+    closed = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        FakeConn.closed += 1
+
+
+connects = []
+real_connect = docs.socket.create_connection
+docs.socket.create_connection = lambda addr, timeout=None: connects.append(addr) or FakeConn()
+docs._online = None
+try:
+    results = [real_is_online() for _ in range(5)]
+    check(results == [True] * 5 and len(connects) == 1, f"online check runs once ({len(connects)} connection(s) for 5 calls)")
+    real_is_online(refresh=True)
+    check(len(connects) == 2 and FakeConn.closed == 2, "refresh checks again, and every connection is closed")
+finally:
+    docs.socket.create_connection = real_connect
+    docs._online = None
 
 # --- main window: typed commands are read and echoed once ---
 import time  # noqa: E402
