@@ -51,6 +51,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
 | `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
+| `net-icmp-echo` | network | easy | Read ICMP echo traffic; find the host that replied |
+| `net-smurf-victim` | network | medium | Find the target of a smurf amplification flood |
+| `net-smurf-amp` | network | hard | Count the reflectors amplifying a smurf attack |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 

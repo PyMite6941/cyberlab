@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 ETH_P_IP = 0x0800
+PROTO_ICMP = 1
 PROTO_TCP = 6
 PROTO_UDP = 17
 
@@ -71,6 +72,16 @@ def _tcp(src_ip, dst_ip, src_port, dst_port, flags, seq, ack, payload) -> bytes:
     return seg[:16] + struct.pack("!H", csum) + seg[18:]
 
 
+ICMP_ECHO_REPLY = 0
+ICMP_ECHO_REQUEST = 8
+
+
+def _icmp_echo(icmp_type: int, ident: int, seq: int, payload: bytes) -> bytes:
+    body = struct.pack("!BBHHH", icmp_type, 0, 0, ident & 0xFFFF, seq & 0xFFFF) + payload
+    csum = _checksum(body)
+    return body[:2] + struct.pack("!H", csum) + body[4:]
+
+
 def dns_query(name: str, qtype: int = 1, txid: int = 0x1234) -> bytes:
     """A standard recursive DNS query message (qtype 1 = A, 16 = TXT)."""
     header = struct.pack("!HHHHHH", txid, 0x0100, 1, 0, 0, 0)  # RD set, 1 question
@@ -95,8 +106,15 @@ class Packet:
     ack: int = 0
     ident: int = 0
 
+    icmp_type: int = 0  # ICMP only: 8 request, 0 reply
+    icmp_id: int = 0
+    icmp_seq: int = 0
+
     def frame(self) -> bytes:
-        if self.proto == PROTO_UDP:
+        if self.proto == PROTO_ICMP:
+            l4 = _icmp_echo(self.icmp_type, self.icmp_id, self.icmp_seq,
+                            self.payload or b"cyberlab-echo-payload")
+        elif self.proto == PROTO_UDP:
             l4 = _udp(self.src_ip, self.dst_ip, self.src_port, self.dst_port, self.payload)
         else:
             l4 = _tcp(self.src_ip, self.dst_ip, self.src_port, self.dst_port,
@@ -123,6 +141,12 @@ def tcp_data(ts, src_ip, dst_ip, src_port, dst_port, text,
     body = text.encode() if isinstance(text, str) else text
     return Packet(ts, src_mac, dst_mac, src_ip, dst_ip, PROTO_TCP, src_port, dst_port,
                   flags=PSH | ACK, seq=1, ack=1, payload=body)
+
+
+def icmp_echo(ts, src_ip, dst_ip, icmp_type, ident, seq,
+              src_mac="02:00:00:00:00:01", dst_mac="02:00:00:00:00:02") -> Packet:
+    return Packet(ts, src_mac, dst_mac, src_ip, dst_ip, PROTO_ICMP, 0, 0,
+                  icmp_type=icmp_type, icmp_id=ident, icmp_seq=seq)
 
 
 def write_pcap(path, packets: List[Packet], base_epoch: int = 1_760_000_000) -> None:
