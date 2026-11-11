@@ -43,6 +43,27 @@ def post_login(port: int, username: str, password: str = "x"):
         return e.code, e.read().decode()
 
 
+def get(port: int, path: str, cookies: str = ""):
+    """GET a path (optionally with a Cookie header); return (status, body)."""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}")
+    if cookies:
+        req.add_header("Cookie", cookies)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
+def post(port: int, path: str):
+    """POST a path with an empty body; return (status, body)."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", data=b"", timeout=5) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
 def accepting(port: int) -> bool:
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=0.2):
@@ -116,6 +137,91 @@ class TestWebapp(TempHome):
         status, body = post_login(self.port, "'")
         self.assertEqual(status, 500)
         self.assertIn("Database error", body)
+
+    # web-xss
+    def test_plain_search_has_no_flag(self):
+        status, body = get(self.port, "/search?q=widgets")
+        self.assertEqual(status, 200)
+        self.assertIn("widgets", body)
+        self.assertNotIn("FLAG{", body)
+
+    def test_script_payload_is_reflected_and_flags(self):
+        for payload in ("<script>alert(1)</script>", "<img src=x onerror=alert(1)>"):
+            with self.subTest(payload=payload):
+                status, body = get(self.port, "/search?q=" + urllib.parse.quote(payload))
+                self.assertEqual(status, 200)
+                self.assertIn(payload, body)  # reflected unescaped
+                self.assertIn(self.ws.flag("web-xss"), body)
+
+    def test_escaped_search_would_not_flag(self):
+        # If the student only types text (no real tag), there is no XSS and no flag.
+        status, body = get(self.port, "/search?q=" + urllib.parse.quote("not a <tag"))
+        self.assertNotIn("FLAG{", body)
+
+    # web-idor
+    def test_invoice_needs_a_session(self):
+        status, body = get(self.port, "/invoice?id=1001")
+        self.assertEqual(status, 401)
+        self.assertNotIn("FLAG{", body)
+
+    def test_own_invoice_has_no_flag(self):
+        status, body = get(self.port, "/invoice?id=1002", cookies="session=ok")
+        self.assertEqual(status, 200)
+        self.assertIn("$420.00", body)
+        self.assertNotIn("FLAG{", body)
+
+    def test_idor_reads_the_admin_invoice(self):
+        status, body = get(self.port, "/invoice?id=1001", cookies="session=ok")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-idor"), body)
+
+    # web-cookie
+    def test_staff_dashboard_has_no_flag(self):
+        status, body = get(self.port, "/dashboard", cookies="session=ok; role=staff")
+        self.assertEqual(status, 200)
+        self.assertNotIn("FLAG{", body)
+
+    def test_admin_role_cookie_unlocks_the_dashboard(self):
+        status, body = get(self.port, "/dashboard", cookies="session=ok; role=admin")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-cookie"), body)
+
+    def test_login_sets_the_role_cookie(self):
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/login",
+                                    data=urllib.parse.urlencode(
+                                        {"username": "alice", "password": "wonderland"}).encode(),
+                                    timeout=5) as r:
+            cookies = r.headers.get_all("Set-Cookie") or []
+        self.assertTrue(any("role=staff" in c for c in cookies))
+
+    # web-upload
+    def test_php_upload_is_rejected(self):
+        status, body = post(self.port, "/upload?file=shell.php")
+        self.assertEqual(status, 403)
+        self.assertNotIn("FLAG{", body)
+
+    def test_jpg_upload_is_accepted_without_a_flag(self):
+        status, body = post(self.port, "/upload?file=cat.jpg")
+        self.assertEqual(status, 200)
+        self.assertNotIn("FLAG{", body)
+
+    def test_phtml_bypasses_the_filter(self):
+        for name in ("shell.phtml", "shell.php5", "x.pht"):
+            with self.subTest(name=name):
+                status, body = post(self.port, "/upload?file=" + name)
+                self.assertEqual(status, 200)
+                self.assertIn(self.ws.flag("web-upload"), body)
+
+
+class TestChallenges(TempHome):
+    def test_web_track_is_registered(self):
+        for cid in ("web-sqli", "web-xss", "web-idor", "web-cookie", "web-upload"):
+            self.assertIn(cid, REGISTRY)
+
+    def test_every_challenge_flag_is_distinct(self):
+        ws = Workspace(self.home)
+        flags = [ws.flag(cid) for cid in REGISTRY]
+        self.assertEqual(len(flags), len(set(flags)))
 
 
 class TestCli(TempHome):

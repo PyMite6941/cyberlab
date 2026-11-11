@@ -53,3 +53,7 @@ def ordered() -> List[Challenge]:
 
 # Each module registers its challenge on import.
 from cyberlab.challenges import web_sqli  # noqa: E402,F401
+from cyberlab.challenges import web_xss  # noqa: E402,F401
+from cyberlab.challenges import web_idor  # noqa: E402,F401
+from cyberlab.challenges import web_cookie  # noqa: E402,F401
+from cyberlab.challenges import web_upload  # noqa: E402,F401
