@@ -233,6 +233,105 @@ class TestReport(TempHome):
         self.assertIn("--name", run().stderr)  # no name given: says how to set one
 
 
+import struct  # noqa: E402
+
+from cyberlab import pcap  # noqa: E402
+from cyberlab.challenges import REGISTRY as _REG  # noqa: E402
+
+
+def read_pcap(path):
+    """Minimal pcap reader: list of dicts with src/dst ip, proto, ports, flags,
+    dns query name, and tcp payload. Enough to prove a challenge's answer is in
+    the capture without any third-party library."""
+    data = Path(path).read_bytes()
+    assert struct.unpack("<I", data[:4])[0] == 0xA1B2C3D4, "bad pcap magic"
+    out, off = [], 24
+    while off < len(data):
+        incl = struct.unpack("<I", data[off + 8:off + 12])[0]
+        frame = data[off + 16:off + 16 + incl]
+        off += 16 + incl
+        assert frame[12:14] == b"\x08\x00", "not IPv4"
+        ihl = (frame[14] & 0x0F) * 4
+        proto = frame[23]
+        src = ".".join(str(b) for b in frame[26:30])
+        dst = ".".join(str(b) for b in frame[30:34])
+        l4 = 14 + ihl
+        rec = {"src": src, "dst": dst, "proto": proto,
+               "sport": struct.unpack("!H", frame[l4:l4 + 2])[0],
+               "dport": struct.unpack("!H", frame[l4 + 2:l4 + 4])[0],
+               "flags": 0, "dns": None, "payload": b""}
+        if proto == pcap.PROTO_UDP and rec["dport"] == 53:
+            q, i = [], l4 + 8 + 12  # skip UDP(8) + DNS header(12)
+            while frame[i]:
+                n = frame[i]; q.append(frame[i + 1:i + 1 + n].decode()); i += 1 + n
+            rec["dns"] = ".".join(q)
+        elif proto == pcap.PROTO_TCP:
+            rec["flags"] = frame[l4 + 13]
+            dataofs = (frame[l4 + 12] >> 4) * 4
+            rec["payload"] = frame[l4 + dataofs:]
+        out.append(rec)
+    return out
+
+
+class TestPcap(unittest.TestCase):
+    def test_roundtrip(self):
+        path = Path(tempfile.mkdtemp(prefix="cyberlab-test-")) / "c.pcap"
+        self.addCleanup(shutil.rmtree, path.parent, True)
+        pcap.write_pcap(str(path), [
+            pcap.udp_dns(0.0, "10.0.0.5", "8.8.8.8", 5000, "google.com"),
+            pcap.tcp_syn(0.1, "10.0.0.9", "10.0.0.5", 5001, 22),
+            pcap.tcp_data(0.2, "10.0.0.5", "10.0.0.6", 5002, 80, "password=hunter2"),
+        ])
+        recs = read_pcap(path)
+        self.assertEqual(recs[0]["dns"], "google.com")
+        self.assertTrue(recs[1]["flags"] & pcap.SYN and not recs[1]["flags"] & pcap.ACK)
+        self.assertIn(b"password=hunter2", recs[2]["payload"])
+
+
+class TestNetworkChallenges(TempHome):
+    def test_registered(self):
+        for cid in ("net-http-creds", "net-port-scan", "net-dns-tunnel"):
+            self.assertIn(cid, _REG)
+
+    def test_http_creds_password_is_in_the_capture(self):
+        ws = Workspace(self.home)
+        c = _REG["net-http-creds"]
+        out = c.setup(ws)
+        path = out.split("Capture:", 1)[1].split("\n", 1)[0].strip()
+        payloads = b"".join(r["payload"] for r in read_pcap(path))
+        self.assertIn(c._password(ws).encode(), payloads)
+        self.assertTrue(c.check(ws, c._password(ws)))
+        self.assertTrue(c.check(ws, "  " + c._password(ws) + "\n"))
+        self.assertFalse(c.check(ws, "N0rth-000000"))
+
+    def test_port_scan_source_is_the_busiest_syn_sender(self):
+        ws = Workspace(self.home)
+        c = _REG["net-port-scan"]
+        path = c.setup(ws).split("Capture:", 1)[1].split("\n", 1)[0].strip()
+        from collections import defaultdict
+        ports = defaultdict(set)
+        for r in read_pcap(path):
+            if r["proto"] == pcap.PROTO_TCP and r["flags"] & pcap.SYN and not r["flags"] & pcap.ACK:
+                ports[r["src"]].add(r["dport"])
+        busiest = max(ports, key=lambda ip: len(ports[ip]))
+        self.assertEqual(busiest, c._scanner_ip(ws))
+        self.assertTrue(c.check(ws, c._scanner_ip(ws)))
+        self.assertFalse(c.check(ws, "10.0.0.1"))
+
+    def test_dns_tunnel_domain_is_the_most_queried(self):
+        ws = Workspace(self.home)
+        c = _REG["net-dns-tunnel"]
+        path = c.setup(ws).split("Capture:", 1)[1].split("\n", 1)[0].strip()
+        from collections import Counter
+        registered = Counter()
+        for r in read_pcap(path):
+            if r["dns"]:
+                registered[".".join(r["dns"].split(".")[-2:])] += 1
+        self.assertEqual(registered.most_common(1)[0][0], c._domain(ws))
+        self.assertTrue(c.check(ws, c._domain(ws).upper() + "."))
+        self.assertFalse(c.check(ws, "google.com"))
+
+
 @unittest.skipUnless(Path("/proc/self").exists(), "needs /proc (Linux) to tell processes apart")
 class TestStopIsSafe(TempHome):
     def test_stop_never_kills_an_unrelated_process(self):
