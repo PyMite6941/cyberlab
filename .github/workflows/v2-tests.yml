@@ -57,9 +57,12 @@ jobs:
           CYBERLAB_HOME: ${{ runner.temp }}/cyberlab
         run: |
           set -e
-          echo "== http creds =="
-          tshark -r "$CYBERLAB_HOME/net-http-creds/capture.pcap" -Y 'http.request.method=="POST"' \
-                 -T fields -e http.file_data | grep -q password
+          echo "== http creds: tshark sees an HTTP POST carrying the password =="
+          # Match on the dissected HTTP method (proves HTTP dissection) plus the
+          # raw bytes (dissector-agnostic: urlencoded bodies aren't in http.file_data).
+          tshark -r "$CYBERLAB_HOME/net-http-creds/capture.pcap" \
+                 -Y 'http.request.method=="POST" && frame contains "password"' \
+                 -T fields -e http.request.method | grep -q POST
           echo "== port scan: SYNs from several sources =="
           test "$(tshark -r "$CYBERLAB_HOME/net-port-scan/capture.pcap" \
                  -Y 'tcp.flags.syn==1 && tcp.flags.ack==0' -T fields -e ip.src | sort -u | wc -l)" -ge 2
