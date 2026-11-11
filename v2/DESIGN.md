@@ -44,8 +44,8 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
 2. Web track: reflected XSS, IDOR, session-cookie tampering, upload filter bypass.
 3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
    credentials, port scan, DNS tunnel).
-4. Log track: real log files for grep (SSH brute force, password spray,
-   privilege escalation, web attacks in an access log).
+4. **Done:** log track: real log files for grep (SSH brute force, web scan,
+   sudo privilege escalation).
 5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).
 
 ## Extending the network track
