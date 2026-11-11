@@ -57,3 +57,6 @@ from cyberlab.challenges import web_xss  # noqa: E402,F401
 from cyberlab.challenges import web_idor  # noqa: E402,F401
 from cyberlab.challenges import web_cookie  # noqa: E402,F401
 from cyberlab.challenges import web_upload  # noqa: E402,F401
+from cyberlab.challenges import net_http_creds  # noqa: E402,F401
+from cyberlab.challenges import net_port_scan  # noqa: E402,F401
+from cyberlab.challenges import net_dns_tunnel  # noqa: E402,F401

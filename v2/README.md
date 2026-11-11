@@ -52,6 +52,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `web-cookie` | web | medium | Privilege escalation by editing a role cookie |
 | `web-idor` | web | medium | IDOR: read another account's invoice |
 | `web-upload` | web | hard | Upload filter bypass: slip a webshell past the blocklist |
+| `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
+| `net-port-scan` | network | medium | Find the host port-scanning the server |
+| `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 

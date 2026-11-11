@@ -33,3 +33,40 @@ jobs:
           cd /tmp
           "$GITHUB_WORKSPACE/v2/bin/cyberlab" --version
           "$GITHUB_WORKSPACE/v2/bin/cyberlab" list
+
+  # The network captures claim to open in Wireshark; prove it with tshark,
+  # the tool students actually use, not just our own parser.
+  pcap-dissection:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tshark
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tshark
+      - name: Generate the captures
+        working-directory: v2
+        env:
+          CYBERLAB_HOME: ${{ runner.temp }}/cyberlab
+        run: |
+          for c in net-http-creds net-port-scan net-dns-tunnel; do
+            PYTHONPATH=. python3 -m cyberlab start "$c"
+          done
+      - name: tshark dissects them as HTTP / DNS / TCP
+        env:
+          CYBERLAB_HOME: ${{ runner.temp }}/cyberlab
+        run: |
+          set -e
+          echo "== http creds: tshark sees an HTTP POST carrying the password =="
+          # Match on the dissected HTTP method (proves HTTP dissection) plus the
+          # raw bytes (dissector-agnostic: urlencoded bodies aren't in http.file_data).
+          tshark -r "$CYBERLAB_HOME/net-http-creds/capture.pcap" \
+                 -Y 'http.request.method=="POST" && frame contains "password"' \
+                 -T fields -e http.request.method | grep -q POST
+          echo "== port scan: SYNs from several sources =="
+          test "$(tshark -r "$CYBERLAB_HOME/net-port-scan/capture.pcap" \
+                 -Y 'tcp.flags.syn==1 && tcp.flags.ack==0' -T fields -e ip.src | sort -u | wc -l)" -ge 2
+          echo "== dns tunnel: TXT queries present =="
+          tshark -r "$CYBERLAB_HOME/net-dns-tunnel/capture.pcap" -Y 'dns.qry.type==16' \
+                 -T fields -e dns.qry.name | grep -q .
+          echo "all captures dissected"
