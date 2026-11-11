@@ -58,6 +58,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `log-ssh-brute` | logs | easy | Find the IP that brute-forced SSH in auth.log |
 | `log-web-scan` | logs | medium | Find the hidden path a web scan uncovered |
 | `log-sudo-esc` | logs | hard | Find the user who escalated to root via sudo |
+| `net-icmp-echo` | network | easy | Read ICMP echo traffic; find the host that replied |
+| `net-smurf-victim` | network | medium | Find the target of a smurf amplification flood |
+| `net-smurf-amp` | network | hard | Count the reflectors amplifying a smurf attack |
 | `dict-john` | logs | easy | Crack a weak local password hash with John the Ripper |
 | `dict-hydra` | logs | medium | Audit a local HTTP login with Hydra |
 
