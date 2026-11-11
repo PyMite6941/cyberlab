@@ -51,6 +51,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
 | `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
+| `log-ssh-brute` | logs | easy | Find the IP that brute-forced SSH in auth.log |
+| `log-web-scan` | logs | medium | Find the hidden path a web scan uncovered |
+| `log-sudo-esc` | logs | hard | Find the user who escalated to root via sudo |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 
