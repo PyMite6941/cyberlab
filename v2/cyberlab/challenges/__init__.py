@@ -59,3 +59,5 @@ from cyberlab.challenges import net_dns_tunnel  # noqa: E402,F401
 from cyberlab.challenges import net_icmp_echo  # noqa: E402,F401
 from cyberlab.challenges import net_smurf_victim  # noqa: E402,F401
 from cyberlab.challenges import net_smurf_amp  # noqa: E402,F401
+from cyberlab.challenges import dict_john  # noqa: E402,F401
+from cyberlab.challenges import dict_hydra  # noqa: E402,F401

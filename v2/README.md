@@ -54,6 +54,8 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-icmp-echo` | network | easy | Read ICMP echo traffic; find the host that replied |
 | `net-smurf-victim` | network | medium | Find the target of a smurf amplification flood |
 | `net-smurf-amp` | network | hard | Count the reflectors amplifying a smurf attack |
+| `dict-john` | logs | easy | Crack a weak local password hash with John the Ripper |
+| `dict-hydra` | logs | medium | Audit a local HTTP login with Hydra |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 

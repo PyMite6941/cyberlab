@@ -9,6 +9,15 @@ on:
       - "v2/cyberlab/**"
       - "v2/tests/**"
       - "v2/bin/**"
+      - "cyberlab.bat"
+      - "cyberlab.sh"
+      - "run.bat"
+      - "run.sh"
+      - "install.bat"
+      - "install.sh"
+      - "pyproject.toml"
+      - "README.md"
+      - "EXPANSION.md"
       - ".github/workflows/v2-tests.yml"
 
 jobs:
@@ -29,8 +38,11 @@ jobs:
       - name: The launcher works from anywhere
         env:
           CYBERLAB_HOME: ${{ runner.temp }}/cyberlab
+          PYTHONPATH: ${{ github.workspace }}/v2
         run: |
           cd /tmp
+          python3 -m cyberlab --version
+          bash "$GITHUB_WORKSPACE/cyberlab.sh" list
           "$GITHUB_WORKSPACE/v2/bin/cyberlab" --version
           "$GITHUB_WORKSPACE/v2/bin/cyberlab" list
 

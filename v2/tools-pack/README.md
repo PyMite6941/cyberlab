@@ -1,9 +1,26 @@
 # cyberlab tools pack
 
 Real security tools for the cyber class, installable on the school's Linux Mint
-22.x machines **without internet**:
+22.x machines **without internet**.
 
-nmap, tshark, Wireshark, hydra, sqlmap, John the Ripper, nikto, gobuster, curl, netcat
+## Included tools (10)
+
+These are the ten requested tool packages in `tools.txt`. The pack also contains
+their required dependency packages, so the total number of `.deb` files is
+larger and can vary with the Ubuntu/Mint package repository.
+
+| # | Package | Command | Purpose |
+|---|---------|---------|---------|
+| 1 | `nmap` | `nmap` | Network and service discovery in authorized labs |
+| 2 | `tshark` | `tshark` | Command-line packet capture analysis |
+| 3 | `wireshark` | `wireshark` | GUI packet analysis |
+| 4 | `hydra` | `hydra` | Login-audit tool |
+| 5 | `sqlmap` | `sqlmap` | SQL injection testing |
+| 6 | `john` | `john` | John the Ripper password auditing |
+| 7 | `nikto` | `nikto` | Web-server configuration scanning |
+| 8 | `gobuster` | `gobuster` | Directory and DNS enumeration |
+| 9 | `curl` | `curl` | HTTP client |
+| 10 | `netcat-openbsd` | `nc` | Netcat network utility |
 
 ## Install (on each school machine)
 
