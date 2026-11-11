@@ -1,97 +1,53 @@
-# cyberterminal
+# cyberlab
 
-Custom emulated terminal for offline cybersecurity practice. Simulated labs for
-learning web application testing (BurpSuite-style intercepting proxy) and packet
-analysis (Wireshark-style capture) without needing a network connection.
+An offline cyber range for classroom practice. The current standard is the v2
+challenge-based range in `v2/`; the old `src` cyberterminal is no longer used.
+Challenges run deliberately vulnerable targets on `127.0.0.1`, use per-workspace
+flags, and save progress under `~/cyberlab` (or `CYBERLAB_HOME`).
+
+The supported class environment is Linux Mint 22.x. The application uses
+Python 3.10+ and the standard library. The optional offline tools pack is in
+`v2/tools-pack/`.
 
 ## Quick start
 
-```powershell
-# Windows
-.\install.bat
-.\run.bat
+On Linux Mint:
 
-# macOS / Linux
-chmod +x install.sh run.sh
+```sh
 ./install.sh
-./run.sh
+cyberlab list
+cyberlab start web-sqli
+cyberlab hint web-sqli
+cyberlab submit web-sqli 'FLAG{...}'
+cyberlab stop
+cyberlab report --name "Your Name" -o ~/Desktop/report.txt
 ```
 
-Progress is saved to `~/.cyberterminal/progress.json`. Set
-`CYBERTERMINAL_HOME` to keep it somewhere else.
+`./install.sh` installs a per-user `cyberlab` command link; it does not install
+system packages. For a local checkout, `./cyberlab.sh list` runs the same v2
+CLI without setup. `cyberlab.bat` is a Windows launcher for the CLI, but target
+hosting is supported only in the documented Linux environment.
 
-Smoke test (no window needed):
+To install the optional tools pack on the class machines, use the bundled
+offline archive and its installer. Read [v2/tools-pack/README.md](v2/tools-pack/README.md)
+and follow school IT policy before installing or using security tools.
 
-```bash
-python3 tests/smoke_terminal.py
+## Challenges and progress
+
+| ID | Track | Level | Practice |
+|----|-------|-------|----------|
+| `web-sqli` | web | easy | Analyze a local login target and submit its workspace-specific flag |
+
+Targets bind to loopback only. `cyberlab stop` stops running targets, and
+`cyberlab reset` deletes the local workspace after confirmation. Reports are
+student-generated progress summaries, not proof of work.
+
+## Development
+
+```sh
+python3 -m unittest discover -s v2/tests -v
+./cyberlab.sh --help
 ```
 
-## What is cyberterminal?
-
-`cyberterminal` IS the program — there is no separate `cyberlab` command. Running
-`cyberterminal` (or `.\run.bat` / `./run.sh`) launches a custom emulated terminal
-shell:
-
-```
-cyberterminal> help
-cyberterminal> tutorials
-cyberterminal> tutorial burp-basics
-cyberterminal> labs
-cyberterminal> run burp-01
-cyberterminal> burp
-cyberterminal> wireshark
-cyberterminal> help web          # opens tutorial search page in browser
-cyberterminal> exit
-```
-
-## Included tools
-
-- **burp** — simulated intercepting proxy. Inspect and modify HTTP requests/
-  responses against a mock vulnerable target, entirely offline.
-- **wireshark** — simulated packet capture. Generate, inspect, filter, and
-  export synthetic Ethernet/IP/TCP/UDP/HTTP/DNS packets to pcap.
-- **tutorials** — 7 baked-in tutorials across web and network domains with
-  step-by-step commands.
-- **help web** — opens a self-contained HTML tutorial search page (offline).
-
-## Available tutorials
-
-| ID | Category | Title |
-|----|----------|-------|
-| burp-basics | web | BurpSuite Basics - Intercept & Modify |
-| burp-sql-injection | web | Simulated SQL Injection via Proxy |
-| burp-xss | web | Cross-Site Scripting (XSS) via Proxy |
-| burp-admin-escalation | web | Privilege Escalation via Session Cookie |
-| wireshark-basics | network | Wireshark Basics - Packet Inspection |
-| wireshark-dns-analysis | network | DNS Traffic Analysis |
-| wireshark-tcp-handshake | network | TCP Three-Way Handshake Analysis |
-
-## Available labs
-
-| ID | Module | Title |
-|----|--------|-------|
-| burp-01 | burp | Intercepting proxy basics |
-| wireshark-01 | wireshark | Packet capture analysis |
-
-
-## Offline use
-
-`install.py` creates a `.venv`, installs dependencies, and (optionally) caches
-wheels into `wheels/` so the environment can be reinstalled with no network:
-
-```powershell
-# While still online, populate the offline wheel cache
-python install.py --cache-wheels
-
-# Later, fully offline
-python install.py --offline
-```
-
-Install is interactive and asks:
-- Install tutorial docs? (y/n)
-- Which tools to set up: burp / wireshark / both
-- Download tutorials for offline use? (y/n)
-
-Use `--non-interactive` to skip prompts (defaults: yes to everything).
-
-All traffic is simulated locally — nothing touches the wire.
+For expansion priorities and design constraints, see [EXPANSION.md](EXPANSION.md)
+and [v2/DESIGN.md](v2/DESIGN.md).

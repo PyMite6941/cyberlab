@@ -42,10 +42,24 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
 
 1. **Done:** CLI, workspace, flags, target processes, `web-sqli`, tests and CI.
 2. Web track: reflected XSS, IDOR, session-cookie tampering, upload filter bypass.
-3. **Done:** network track: real pcaps for Wireshark/tshark (cleartext
+3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
    credentials, port scan, DNS tunnel).
 4. **Done:** log track: real log files for grep (SSH brute force, web scan,
    sudo privilege escalation).
 5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).
 
-v1 (the app at the repo root) stays as-is until v2 covers what the class uses.
+## Extending the network track
+
+The network track is implemented with three self-contained packet-analysis
+challenges. To add another, create a challenge module that writes a synthetic
+capture into that student's workspace using `cyberlab.pcap`, register it in
+`cyberlab/challenges/__init__.py`, and list Wireshark/`tshark` in its optional
+tool hints. Keep the capture offline and synthetic: do not capture, inject, or
+send traffic to external systems. Add tests that inspect the generated packets
+and verify the answer check, then document the challenge in the README.
+
+The distro's tools pack is separate from the challenge runtime, so challenges
+must remain startable and checkable without those optional tools.
+
+v2 is the standard application and the only supported challenge runtime. The
+legacy root `src` terminal and its launch paths have been retired.
