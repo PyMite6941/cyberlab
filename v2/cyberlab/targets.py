@@ -24,6 +24,7 @@ PACKAGE_PARENT = Path(__file__).resolve().parent.parent  # the v2/ folder
 # name -> (module to run, preferred port)
 TARGETS = {
     "webapp": ("cyberlab.webapp", 8080),
+    "httpauth": ("cyberlab.httpauth", 8091),
 }
 
 

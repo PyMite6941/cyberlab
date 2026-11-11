@@ -9,6 +9,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -21,8 +22,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 V2 = Path(__file__).resolve().parent.parent
+REPO_ROOT = V2.parent
 sys.path.insert(0, str(V2))
 
 from cyberlab import report, targets  # noqa: E402
@@ -128,7 +131,7 @@ class TestCli(TempHome):
 
     def cyberlab(self, *args: str, stdin: str = ""):
         return subprocess.run([sys.executable, "-m", "cyberlab", *args], input=stdin,
-                              env=self.env, cwd=V2, capture_output=True, text=True, timeout=30)
+                              env=self.env, cwd=REPO_ROOT, capture_output=True, text=True, timeout=30)
 
     def start(self) -> int:
         r = self.cyberlab("start", "web-sqli")
@@ -342,6 +345,128 @@ class TestStopIsSafe(TempHome):
         ws.save()
         self.assertEqual(targets.stop_all(ws), [])
         self.assertIsNone(sleeper.poll(), "stop killed a process that wasn't ours")
+
+
+class TestDictJohn(TempHome):
+    """Logic tests for the John the Ripper dictionary-attack challenge."""
+
+    def _paths(self, ws, details):
+        lines = details.splitlines()
+        hash_path = lines[0].split("Hash file: ", 1)[1].strip()
+        word_path = lines[1].split("Wordlist:  ", 1)[1].strip()
+        return hash_path, word_path
+
+    def test_setup_writes_wordlist_and_hash(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["dict-john"]
+        details = c.setup(ws)
+        hash_path, word_path = self._paths(ws, details)
+        self.assertTrue(Path(hash_path).exists(), hash_path)
+        self.assertTrue(Path(word_path).exists(), word_path)
+
+        # The password is in the wordlist.
+        words = Path(word_path).read_text().split()
+        pw = c._password(ws)
+        self.assertIn(pw, words)
+
+        # The hash is the MD5 of the password.
+        line = Path(hash_path).read_text().strip()
+        self.assertEqual(line, f"admin:{__import__('hashlib').md5(pw.encode()).hexdigest()}")
+
+    def test_setup_quotes_paths_in_commands(self):
+        ws = Workspace(self.home / "student files")
+        c = REGISTRY["dict-john"]
+        details = c.setup(ws)
+        hash_path, word_path = self._paths(ws, details)
+        commands = [shlex.split(line.strip()) for line in details.splitlines()
+                    if line.strip().startswith("john ")]
+
+        self.assertEqual(commands[0][2], f"--wordlist={word_path}")
+        self.assertEqual(commands[0][3], hash_path)
+        self.assertEqual(commands[1], ["john", "--show", hash_path])
+
+    def test_check_accepts_correct_and_rejects_wrong(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["dict-john"]
+        pw = c._password(ws)
+        self.assertTrue(c.check(ws, pw))
+        self.assertTrue(c.check(ws, "  " + pw + "\n"))
+        self.assertFalse(c.check(ws, "wrongpassword"))
+        self.assertFalse(c.check(ws, ""))
+
+
+class TestHttpAuth(TempHome):
+    """Logic tests for the dictionary-attack login target (separate from web-sqli)."""
+
+    def setUp(self):
+        super().setUp()
+        self.ws = Workspace(self.home)
+        import cyberlab.httpauth as _ha
+
+        self.server = _ha.make_server(0, self.ws)
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def test_listens_on_loopback_only(self):
+        self.assertEqual(self.server.server_address[0], "127.0.0.1")
+
+    def test_login_form(self):
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/login", timeout=5) as r:
+            self.assertIn('name="username"', r.read().decode())
+
+    def test_wrong_password_is_rejected(self):
+        status, body = post_login(self.port, "admin", "guess")
+        self.assertEqual(status, 401)
+        self.assertNotIn("FLAG{", body)
+
+    def test_correct_password_shows_the_flag(self):
+        _, pw = __import__("cyberlab.httpauth", fromlist=["make_credentials"]).make_credentials(self.ws)
+        status, body = post_login(self.port, "admin", pw)
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("dict-hydra"), body)
+        self.assertIn("Welcome back, admin", body)
+
+
+class TestDictHydra(TempHome):
+    """Logic tests for the Hydra dictionary-attack challenge."""
+
+    def test_password_matches_httpauth_target(self):
+        # dict-hydra and httpauth must derive the same password so Hydra's
+        # recovered password is the answer this challenge expects.
+        import cyberlab.httpauth as ha
+
+        ws = Workspace(self.home)
+        _, pw = ha.make_credentials(ws)
+        c = REGISTRY["dict-hydra"]
+        self.assertEqual(c._password(ws), pw)
+
+    def test_setup_quotes_form_and_wordlist_for_the_shell(self):
+        ws = Workspace(self.home / "student files")
+        c = REGISTRY["dict-hydra"]
+        with mock.patch("cyberlab.challenges.dict_hydra.targets.start", return_value=8091) as start:
+            details = c.setup(ws)
+
+        command = next(line.strip() for line in details.splitlines()
+                       if line.strip().startswith("hydra "))
+        args = shlex.split(command)
+        form = "/login:username=^USER^&password=^PASS^:F=Invalid username or password"
+        module_index = args.index("http-post-form")
+
+        start.assert_called_once_with(ws, "httpauth")
+        self.assertEqual(args[args.index("-P") + 1], str(ws.path("dict-hydra", "wordlist.txt")))
+        self.assertEqual(args[module_index + 1], form)
+        self.assertEqual(module_index + 2, len(args))
+
+    def test_check_accepts_correct_and_rejects_wrong(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["dict-hydra"]
+        pw = c._password(ws)
+        self.assertTrue(c.check(ws, pw))
+        self.assertTrue(c.check(ws, "  " + pw + "\n"))
+        self.assertFalse(c.check(ws, "wrongpassword"))
+        self.assertFalse(c.check(ws, ""))
 
 
 if __name__ == "__main__":

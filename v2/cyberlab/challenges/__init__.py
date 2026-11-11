@@ -56,3 +56,5 @@ from cyberlab.challenges import web_sqli  # noqa: E402,F401
 from cyberlab.challenges import net_http_creds  # noqa: E402,F401
 from cyberlab.challenges import net_port_scan  # noqa: E402,F401
 from cyberlab.challenges import net_dns_tunnel  # noqa: E402,F401
+from cyberlab.challenges import dict_john  # noqa: E402,F401
+from cyberlab.challenges import dict_hydra  # noqa: E402,F401

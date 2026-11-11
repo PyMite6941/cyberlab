@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# cyberlab install - macOS / Linux wrapper
-python3 install.py "$@"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec sh "$ROOT_DIR/v2/setup.sh" "$@"

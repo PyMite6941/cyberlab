@@ -51,6 +51,8 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
 | `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
+| `dict-john` | logs | easy | Crack a weak local password hash with John the Ripper |
+| `dict-hydra` | logs | medium | Audit a local HTTP login with Hydra |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 
