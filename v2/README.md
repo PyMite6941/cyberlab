@@ -48,6 +48,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | ID | Track | Level | What you do |
 |----|-------|-------|-------------|
 | `web-sqli` | web | easy | SQL injection: log in as admin without the password |
+| `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
+| `net-port-scan` | network | medium | Find the host port-scanning the server |
+| `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 
