@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlsplit
 
+from cyberlab import lessons
 from cyberlab.workspace import Workspace
 
 HOST = "127.0.0.1"  # never listen anywhere else
@@ -128,6 +129,8 @@ class Handler(BaseHTTPRequestHandler):
             self._get_invoice()
         elif route == "/dashboard":
             self._get_dashboard()
+        elif route == "/learn" or route.startswith("/learn/"):
+            self._get_learn()
         else:
             self._send(404, "Not found", "<p>Not found.</p>")
 
@@ -219,6 +222,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "Dashboard",
                        f"<h2>Staff dashboard</h2><p>You are '{html.escape(role or 'staff')}'. "
                        "Only admins see the admin dashboard.</p>")
+
+    def _get_learn(self) -> None:
+        route = urlsplit(self.path).path
+        challenge_id = route[len("/learn/"):] if route.startswith("/learn/") else ""
+        lesson = lessons.LESSONS.get(challenge_id)
+        key = self._query().get("key", [""])[0]
+        if lesson is None:
+            self._send(404, "Not found",
+                       f"<p>No debrief for {html.escape(challenge_id or '(none)')}.</p>")
+            return
+        if not lessons.unlocked(self.ws, challenge_id, key):
+            self._send(200, "Locked",
+                f"<p>The debrief for {html.escape(challenge_id)} unlocks once you solve the challenge.</p>"
+                f"<p>cyberlab submit {challenge_id} <answer></p>")
+            return
+        self._send(200, lesson.title, lessons.render_html_body(lesson))
 
     def _post_upload(self) -> None:
         name = (self._query().get("file", [""])[0] or self._form().get("file", [""])[0]).strip()

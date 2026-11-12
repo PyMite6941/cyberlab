@@ -6,8 +6,10 @@ standard tools, then submit an answer for immediate feedback.
 
 ## Current baseline
 
-- One web challenge (`web-sqli`) with a real HTTP target bound to `127.0.0.1`.
-- Per-workspace flags, hints, progress, target lifecycle, and text/JSON reports.
+- Sixteen challenges across web, network and logs, each with a real local
+  target or synthetic evidence file, plus per-workspace flags, hints,
+  progress, target lifecycle, text/JSON reports, and written debriefs
+  (`cyberlab learn <id>`).
 - Python standard library runtime and offline tests.
 - Optional Linux Mint 22.x offline tools pack.
 

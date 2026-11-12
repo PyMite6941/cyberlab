@@ -36,11 +36,27 @@ and follow school IT policy before installing or using security tools.
 
 | ID | Track | Level | Practice |
 |----|-------|-------|----------|
-| `web-sqli` | web | easy | Analyze a local login target and submit its workspace-specific flag |
+| `web-sqli` | web | easy | SQL injection: log in as admin without the password |
+| `web-xss` | web | easy | Reflected XSS: make the search box run your markup |
+| `web-cookie` | web | medium | Privilege escalation by editing a role cookie |
+| `web-idor` | web | medium | IDOR: read another account's invoice |
+| `web-upload` | web | hard | Upload filter bypass: slip a webshell past the blocklist |
+| `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
+| `net-port-scan` | network | medium | Find the host port-scanning the server |
+| `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
+| `net-icmp-echo` | network | easy | Read ICMP echo traffic; find the host that replied |
+| `net-smurf-victim` | network | medium | Find the target of a smurf amplification flood |
+| `net-smurf-amp` | network | hard | Count the reflectors amplifying a smurf attack |
+| `log-ssh-brute` | logs | easy | Find the IP that brute-forced SSH in auth.log |
+| `log-web-scan` | logs | medium | Find the hidden path a web scan uncovered |
+| `log-sudo-esc` | logs | hard | Find the user who escalated to root via sudo |
+| `dict-john` | logs | easy | Crack a weak local password hash with John the Ripper |
+| `dict-hydra` | logs | medium | Audit a local HTTP login with Hydra |
 
 Targets bind to loopback only. `cyberlab stop` stops running targets, and
 `cyberlab reset` deletes the local workspace after confirmation. Reports are
 student-generated progress summaries, not proof of work.
+Every solved challenge also has a written debrief: `cyberlab learn <id>`.
 
 ## Development
 

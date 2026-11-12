@@ -19,7 +19,7 @@ import sys
 import textwrap
 from typing import List, Optional
 
-from cyberlab import __version__, menu, report, targets
+from cyberlab import __version__, lessons, menu, report, targets
 from cyberlab.challenges import REGISTRY, Challenge, ordered
 from cyberlab.workspace import Workspace
 
@@ -41,6 +41,8 @@ def _find(challenge_id: str) -> Optional[Challenge]:
 
 def cmd_list(ws: Workspace, args: argparse.Namespace) -> int:
     challenges = ordered()
+    if args.level:
+        challenges = [c for c in challenges if c.difficulty == args.level]
     solved = sum(ws.is_solved(c.id) for c in challenges)
     print(f"{'':4}{'ID':<13} {'TRACK':<9} {'LEVEL':<8} TITLE")
     for c in challenges:
@@ -132,6 +134,21 @@ def cmd_menu(ws: Workspace, args: argparse.Namespace) -> int:
     return menu.run_menu(ws)
 
 
+def cmd_learn(ws: Workspace, args: argparse.Namespace) -> int:
+    lesson = lessons.LESSONS.get(args.id)
+    if lesson is None:
+        print(f"No debrief for '{args.id}'.", file=sys.stderr)
+        print("Solved challenges have one:  cyberlab learn <id>", file=sys.stderr)
+        return 2
+    if not lessons.unlocked(ws, args.id, args.key or ""):
+        print(f"The debrief for {args.id} is locked until you solve it.")
+        print(f"  cyberlab submit {args.id} <answer>")
+        print(f"  cyberlab learn {args.id} --key <debrief key>")
+        return 1
+    print(lessons.render_text(lesson))
+    return 0
+
+
 def cmd_reset(ws: Workspace, args: argparse.Namespace) -> int:
     if not args.yes:
         reply = input(f"Delete {ws.home} and all your progress? Type 'yes' to confirm: ")
@@ -153,7 +170,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
     sub.add_parser("menu", help="open the guided, interactive menu").set_defaults(func=cmd_menu)
-    sub.add_parser("list", help="challenges and your progress").set_defaults(func=cmd_list)
+    p = sub.add_parser("list", help="challenges and your progress")
+    p.add_argument("--level", choices=["easy", "medium", "hard"],
+                   help="show only challenges at this difficulty")
+    p.set_defaults(func=cmd_list)
+    p = sub.add_parser("learn", help="read a solved challenge's debrief")
+    p.add_argument("id")
+    p.add_argument("--key", help="debrief key, used when the challenge is not solved yet")
+    p.set_defaults(func=cmd_learn)
     p = sub.add_parser("start", help="set up a challenge and show its goal")
     p.add_argument("id")
     p.set_defaults(func=cmd_start)
