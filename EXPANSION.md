@@ -6,7 +6,10 @@ standard tools, then submit an answer for immediate feedback.
 
 ## Current baseline
 
-- One web challenge (`web-sqli`) with a real HTTP target bound to `127.0.0.1`.
+- Nine challenges across web, network and password-audit tracks, with local
+  HTTP targets or synthetic packet captures.
+- Practical debriefs after successful submissions and through `cyberlab learn`,
+  including reusable commands and defensive guidance.
 - Per-workspace flags, hints, progress, target lifecycle, and text/JSON reports.
 - Python standard library runtime and offline tests.
 - Optional Linux Mint 22.x offline tools pack.
@@ -14,13 +17,14 @@ standard tools, then submit an answer for immediate feedback.
 ## Recommended next steps
 
 1. **Broaden the web track:** add isolated, independently testable challenges
-   for access-control mistakes, reflected input handling, and unsafe upload
-   validation. Give each challenge its own target behavior, hints, checker, and
-   tests; do not make a class exercise depend on a real external service.
-2. **Add offline evidence labs:** provide generated packet captures and log
-   files students can inspect with Wireshark/tshark or standard text tools.
-   Include expected observations and checks so these labs remain usable without
-   network access.
+   for access-control mistakes and unsafe upload validation. Reflected XSS and
+   directory discovery already have local labs. Give each new challenge its
+   own target behavior, hints, checker, debrief and tests; do not make a class
+   exercise depend on a real external service.
+2. **Extend offline evidence labs:** the network track already provides
+   synthetic captures for cleartext HTTP credentials, port scanning and DNS
+   tunneling. Add new evidence only when it teaches a distinct investigation
+   skill, and keep it usable without network access.
 3. **Build a log-analysis track:** create realistic but synthetic web, SSH, and
    operating-system event logs, then add guided investigation tasks for finding
    suspicious activity and explaining the evidence.

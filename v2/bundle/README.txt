@@ -13,9 +13,11 @@ It asks for your password once, for the tools. Then open a new terminal and:
 
     cyberlab list
     cyberlab start web-sqli
+    cyberlab learn web-sqli
 
 Already have the tools?   ./install.sh --skip-tools
 More help:                 cyberlab --help, and cyberlab/README.md
+Solved challenges show a practical debrief; `cyberlab learn <id>` revisits it.
 
   cyberlab/   the practice range (installed to ~/.local/share/cyberlab-app)
   tools/      the offline tools pack; tools/licenses/ has each package's license

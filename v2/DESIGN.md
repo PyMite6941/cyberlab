@@ -25,7 +25,9 @@ and get instant feedback.
 `cyberlab start <id>` runs the challenge's `setup()`, which starts the targets it
 needs (each its own background process, pid and port kept in the state file)
 and/or writes files into `~/cyberlab/<id>/`. Students attack with real tools,
-then `cyberlab submit <id> <answer>` runs `check()`.
+then `cyberlab submit <id> <answer>` runs `check()`. Correct submissions and
+`cyberlab learn <id>` show the same practical debrief: what happened, why it
+matters, commands scoped to the lab, and how to defend against it.
 
 ```
 cyberlab/
@@ -41,9 +43,10 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
 ## Milestones
 
 1. **Done:** CLI, workspace, flags, target processes, `web-sqli`, tests and CI.
-2. Web track: reflected XSS, IDOR, session-cookie tampering, upload filter bypass.
+2. **In progress:** web track includes reflected XSS and forgotten-directory
+   discovery; access-control mistakes and unsafe upload validation remain.
 3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
-   credentials, port scan, DNS tunnel).
+   credentials, port scan, DNS tunnel), plus a local service-discovery lab.
 4. Log track: real log files for grep (SSH brute force, password spray,
    privilege escalation, web attacks in an access log).
 5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).

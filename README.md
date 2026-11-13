@@ -19,6 +19,7 @@ cyberlab list
 cyberlab start web-sqli
 cyberlab hint web-sqli
 cyberlab submit web-sqli 'FLAG{...}'
+cyberlab learn web-sqli
 cyberlab stop
 cyberlab report --name "Your Name" -o ~/Desktop/report.txt
 ```
@@ -36,7 +37,18 @@ and follow school IT policy before installing or using security tools.
 
 | ID | Track | Level | Practice |
 |----|-------|-------|----------|
-| `web-sqli` | web | easy | Analyze a local login target and submit its workspace-specific flag |
+| `web-sqli` | web | easy | Learn SQL injection and parameterized-query defenses |
+| `web-xss` | web | easy | Learn reflected XSS and safe output encoding |
+| `web-gobuster` | web | medium | Find an exposed backup with directory enumeration |
+| `net-http-creds` | network | easy | Recover credentials from a synthetic HTTP capture |
+| `net-port-scan` | network | medium | Identify a scanner from synthetic packet traffic |
+| `net-dns-tunnel` | network | hard | Find a suspicious DNS domain in a synthetic capture |
+| `net-nmap` | network | medium | Identify forgotten local services with nmap |
+| `dict-john` | passwords | easy | Audit weak local password hashes |
+| `dict-hydra` | passwords | medium | Audit a deliberately weak local login |
+
+Correct submissions show a practical debrief with lab-scoped commands and
+defenses. Use `cyberlab learn <id>` to revisit it later.
 
 Targets bind to loopback only. `cyberlab stop` stops running targets, and
 `cyberlab reset` deletes the local workspace after confirmation. Reports are
