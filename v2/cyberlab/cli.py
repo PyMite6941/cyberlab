@@ -1,5 +1,6 @@
 """The `cyberlab` command.
 
+    cyberlab                        open the guided menu (or: cyberlab menu)
     cyberlab list                   challenges and your progress
     cyberlab start <id>             set up a challenge and show its goal
     cyberlab submit <id> <answer>   check an answer
@@ -19,7 +20,7 @@ import sys
 import textwrap
 from typing import List, Optional
 
-from cyberlab import __version__, report, targets
+from cyberlab import __version__, menu, report, targets
 from cyberlab.challenges import REGISTRY, Challenge, ordered
 from cyberlab.workspace import Workspace
 
@@ -156,6 +157,10 @@ def cmd_report(ws: Workspace, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_menu(ws: Workspace, args: argparse.Namespace) -> int:
+    return menu.run_menu(ws)
+
+
 def cmd_reset(ws: Workspace, args: argparse.Namespace) -> int:
     if not args.yes:
         reply = input(f"Delete {ws.home} and all your progress? Type 'yes' to confirm: ")
@@ -176,6 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"cyberlab {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
+    sub.add_parser("menu", help="open the guided, interactive menu").set_defaults(func=cmd_menu)
     sub.add_parser("list", help="challenges and your progress").set_defaults(func=cmd_list)
     p = sub.add_parser("start", help="set up a challenge and show its goal")
     p.add_argument("id")
@@ -206,6 +212,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            return cmd_menu(Workspace(), args)
         parser.print_help()
         return 0
     try:
