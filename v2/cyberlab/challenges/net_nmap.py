@@ -86,4 +86,7 @@ register(NetNmap(
         "Anything that must be reachable needs a login. An unusual port isn't one.",
         "Scan your own machines regularly. The surprises are the point.",
     ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks; 3.3 Segmentation; 3.4 Firewalls",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

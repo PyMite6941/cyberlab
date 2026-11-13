@@ -81,4 +81,7 @@ register(WebXss(
         "Send a Content-Security-Policy header that forbids inline script.",
         "Filtering out the word 'script' doesn't work: there are dozens of other ways in.",
     ],
+    ap_unit="Unit 5",
+    ap_topic="5.1 Application and Data Vulnerabilities and Attacks",
+    ap_skill=["Analyze Risk", "Mitigate Risk", "Detect Attacks"],
 ))

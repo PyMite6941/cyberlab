@@ -88,4 +88,7 @@ register(NetPortScan(
         "Investigate scans alongside authentication, application and endpoint logs instead of "
         "treating every scan as a successful intrusion.",
     ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks; 3.5 Detecting Network Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

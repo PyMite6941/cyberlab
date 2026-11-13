@@ -6,28 +6,28 @@ standard tools, then submit an answer for immediate feedback.
 
 ## Current baseline
 
-- Nine challenges across web, network and password-audit tracks, with local
+- Eleven challenges across web, network, password-audit and log-analysis tracks, with local
   HTTP targets or synthetic packet captures.
 - Practical debriefs after successful submissions and through `cyberlab learn`,
-  including reusable commands and defensive guidance.
+  including reusable commands, defensive guidance and AP Cybersecurity mapping.
 - Per-workspace flags, hints, progress, target lifecycle, and text/JSON reports.
 - Python standard library runtime and offline tests.
 - Optional Linux Mint 22.x offline tools pack.
 
 ## Recommended next steps
 
-1. **Broaden the web track:** add isolated, independently testable challenges
-   for access-control mistakes and unsafe upload validation. Reflected XSS and
-   directory discovery already have local labs. Give each new challenge its
-   own target behavior, hints, checker, debrief and tests; do not make a class
-   exercise depend on a real external service.
+1. **Broaden the web track:** add isolated challenges for session handling and
+   safe upload validation. Reflected XSS, IDOR and directory discovery already
+   have local labs. Give each new challenge its own target behavior, hints,
+   checker, debrief and tests; do not make a class exercise depend on an
+   external service.
 2. **Extend offline evidence labs:** the network track already provides
    synthetic captures for cleartext HTTP credentials, port scanning and DNS
    tunneling. Add new evidence only when it teaches a distinct investigation
    skill, and keep it usable without network access.
-3. **Build a log-analysis track:** create realistic but synthetic web, SSH, and
-   operating-system event logs, then add guided investigation tasks for finding
-   suspicious activity and explaining the evidence.
+3. **Build a log-analysis track:** web access-log forensics is implemented.
+   Add synthetic SSH and operating-system event logs with guided evidence-based
+   investigations.
 4. **Improve class operations:** support difficulty filtering, clearer
    per-challenge state, and a teacher-friendly way to combine reports while
    minimizing identifying data. Keep reports explicit that local progress is
@@ -44,6 +44,9 @@ standard tools, then submit an answer for immediate feedback.
   or student data in the repository.
 - Add unit tests for the checker and an end-to-end CLI test for each new
   challenge. Check that target shutdown and workspace cleanup work as expected.
+- Add AP unit/topic/skill metadata to each challenge, cite concrete log or
+  packet evidence in detection labs, and lead mitigations with application or
+  identity controls before infrastructure controls.
 - Keep optional tools clearly separated from the standard-library runtime and
   document any platform or school-policy requirements.
 

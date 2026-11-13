@@ -39,6 +39,7 @@ and follow school IT policy before installing or using security tools.
 |----|-------|-------|----------|
 | `web-sqli` | web | easy | Learn SQL injection and parameterized-query defenses |
 | `web-xss` | web | easy | Learn reflected XSS and safe output encoding |
+| `web-idor` | web | easy | Learn object-level authorization checks |
 | `web-gobuster` | web | medium | Find an exposed backup with directory enumeration |
 | `net-http-creds` | network | easy | Recover credentials from a synthetic HTTP capture |
 | `net-port-scan` | network | medium | Identify a scanner from synthetic packet traffic |
@@ -46,6 +47,7 @@ and follow school IT policy before installing or using security tools.
 | `net-nmap` | network | medium | Identify forgotten local services with nmap |
 | `dict-john` | passwords | easy | Audit weak local password hashes |
 | `dict-hydra` | passwords | medium | Audit a deliberately weak local login |
+| `web-log-forensics` | logs | easy | Cite directory-traversal evidence in a synthetic access log |
 
 Correct submissions show a practical debrief with lab-scoped commands and
 defenses. Use `cyberlab learn <id>` to revisit it later.

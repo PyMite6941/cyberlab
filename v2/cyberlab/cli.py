@@ -43,6 +43,12 @@ def _print_debrief(ws: Workspace, challenge: Challenge) -> None:
     print(f"\nWhat you learned\n{_wrap(challenge.learned)}")
     print(f"\nWhy it matters in practice\n{_wrap(challenge.real_world)}")
 
+    if challenge.ap_unit and challenge.ap_topic:
+        skills = ", ".join(challenge.ap_skill) or "Not specified"
+        print(f"\nAP Cybersecurity alignment\n"
+              f"  {challenge.ap_unit}: {challenge.ap_topic}\n"
+              f"  Skills: {skills}")
+
     snippets = challenge.snippets(ws)
     if snippets:
         print("\nTry these commands")

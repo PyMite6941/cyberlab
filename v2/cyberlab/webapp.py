@@ -14,10 +14,10 @@ Routes:
     GET  /search?q=       web-xss: the search term is echoed into the page
                           without escaping, so markup in it becomes part of the
                           page and its script runs in the visitor's browser.
-    /secure/login, /secure/search
-                          the same two pages written correctly (a parameterized
-                          query, escaped output), so students can run the same
-                          attack against the fix and watch it fail.
+    GET  /account?id=     web-idor: a simulated Alice session can read any
+                          account record by changing its identifier.
+    /secure/login, /secure/search, /secure/account
+                          fixed versions for direct comparison.
 """
 
 from __future__ import annotations
@@ -104,6 +104,8 @@ class Handler(pages.LabHandler):
             self.send_page(200, "Log in", login_form(url.path))
         elif url.path in ("/search", "/secure/search"):
             self.search(url.path, query.get("q", [None])[0])
+        elif url.path in ("/account", "/secure/account"):
+            self.account(url.path, query.get("id", ["101"])[0])
         else:
             self.not_found()
 
@@ -250,6 +252,53 @@ class Handler(pages.LabHandler):
             submit="cyberlab submit web-xss " + self.ws.flag("web-xss"),
         )
 
+    # ----- web-idor -----
+
+    def account(self, path: str, requested_id: str) -> None:
+        accounts = {
+            "100": ("admin", "IT administrator"),
+            "101": ("alice", "Accounts"),
+            "102": ("bob", "Facilities"),
+        }
+        account = accounts.get(requested_id)
+        if account is None:
+            self.not_found()
+            return
+
+        secure = path == "/secure/account"
+        if secure and requested_id != "101":
+            body = ('<p class="error">You may only view your own account.</p>'
+                    + pages.challenge_lesson(
+                        "web-idor",
+                        "Why that request was denied",
+                        ["The fixed route checks that the requested record belongs to "
+                         "the signed-in user before returning it. Knowing an identifier "
+                         "does not grant permission to access that object."],
+                    ))
+            self.send_page(403, "Forbidden", body)
+            return
+
+        name, role = account
+        body = (f"<p>Signed in as Alice. Account {requested_id}: "
+                f"{html.escape(name)} ({html.escape(role)}).</p>")
+        if requested_id == "100" and not secure:
+            body += pages.flag_box(self.ws.flag("web-idor"))
+            body += pages.challenge_lesson(
+                "web-idor",
+                "What just happened",
+                ["The page accepted an account ID supplied by the browser but never "
+                 "checked whether Alice was allowed to read that account. Changing 101 "
+                 "to 100 returned the administrator's record."],
+                [("Read Alice's own account",
+                  f"curl -i '{self.base_url}/account?id=101'"),
+                 ("Change only the object ID in this local lab",
+                  f"curl -i '{self.base_url}/account?id=100'"),
+                 ("Compare with the fixed route",
+                  f"curl -i '{self.base_url}/secure/account?id=100'")],
+                submit="cyberlab submit web-idor " + self.ws.flag("web-idor"),
+            )
+        self.send_page(200, "Account", body)
+
 
 def _quote(text: str) -> str:
     return quote(text, safe="")
@@ -257,7 +306,8 @@ def _quote(text: str) -> str:
 
 HOME = """
 <p>Staff portal for Northwind Traders.</p>
-<nav><a href="/login">Log in</a> <a href="/search">Staff directory</a></nav>
+<nav><a href="/login">Log in</a> <a href="/search">Staff directory</a>
+<a href="/account?id=101">My account</a></nav>
 """
 
 

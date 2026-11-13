@@ -104,4 +104,7 @@ register(DictHydra(
         "Alert on bursts of failed logins. The server log here shows every guess.",
         "Tools such as fail2ban block an address after repeated failures.",
     ],
+    ap_unit="Units 1, 4 and 5",
+    ap_topic="4.2 Authentication; 5.2 Access Controls",
+    ap_skill=["Analyze Risk", "Mitigate Risk", "Detect Attacks"],
 ))

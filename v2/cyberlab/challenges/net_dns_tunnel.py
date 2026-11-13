@@ -94,4 +94,7 @@ register(NetDnsTunnel(
         "Use protective DNS filtering and investigate repeated anomalous domains.",
         "Correlate DNS alerts with endpoint and network telemetry before blocking business-critical traffic.",
     ],
+    ap_unit="Unit 3",
+    ap_topic="3.5 Detecting Network Attacks",
+    ap_skill=["Detect Attacks"],
 ))

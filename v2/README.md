@@ -54,6 +54,7 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 |----|-------|-------|-------------|
 | `web-sqli` | web | easy | SQL injection: log in as admin without the password |
 | `web-xss` | web | easy | Run JavaScript through a reflected search term |
+| `web-idor` | web | easy | Access a record without an object-level permission check |
 | `web-gobuster` | web | medium | Find a forgotten directory and its exposed backup |
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
@@ -61,8 +62,27 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-nmap` | network | medium | Find forgotten services with nmap |
 | `dict-john` | passwords | easy | Crack weak local password hashes with John the Ripper |
 | `dict-hydra` | passwords | medium | Audit a local HTTP login with Hydra |
+| `web-log-forensics` | logs | easy | Identify a traversal request and cite its access-log line |
 
 More are coming: see [DESIGN.md](DESIGN.md).
+
+### AP Cybersecurity alignment
+
+| Challenge | Unit/topic | Skills practiced |
+|-----------|------------|------------------|
+| `dict-hydra` | Units 1, 4; 4.2 Authentication | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `dict-john` | Units 4–5; 4.2 Authentication, 5.2 Access Controls | Analyze Risk, Mitigate Risk |
+| `net-http-creds` | Unit 3; 3.1 Network Vulnerabilities and Attacks | Analyze Risk, Detect Attacks |
+| `net-nmap` | Unit 3; 3.1, 3.3 Segmentation, 3.4 Firewalls | Analyze Risk, Detect Attacks |
+| `net-port-scan` | Unit 3; 3.1, 3.5 Detecting Network Attacks | Analyze Risk, Detect Attacks |
+| `net-dns-tunnel` | Unit 3; 3.5 Detecting Network Attacks | Detect Attacks |
+| `web-sqli` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-xss` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-idor` | Unit 5; 5.2 Managerial Controls and Access Controls | Analyze Risk, Mitigate Risk |
+| `web-gobuster` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Detect Attacks |
+| `web-log-forensics` | Unit 5; 5.6 Detecting Attacks on Data and Applications | Detect Attacks, Analyze Risk, Mitigate Risk |
+
+`cyberlab learn <id>` shows the challenge's alignment alongside its debrief.
 
 ## For the teacher
 

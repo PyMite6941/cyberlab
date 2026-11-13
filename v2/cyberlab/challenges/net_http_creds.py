@@ -82,4 +82,7 @@ register(NetHttpCreds(
         "Never send passwords, tokens or other secrets in URLs or unencrypted protocols.",
         "Treat packet captures as sensitive: restrict access and delete them when no longer needed.",
     ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

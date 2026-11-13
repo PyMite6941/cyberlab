@@ -31,6 +31,9 @@ class Challenge:
     learned: str = ""                                # what you just did
     real_world: str = ""                             # why it matters
     defend: List[str] = field(default_factory=list)  # how to prevent or detect it
+    ap_unit: str = ""
+    ap_topic: str = ""
+    ap_skill: List[str] = field(default_factory=list)
 
     def setup(self, ws: Workspace) -> str:
         """Start targets / write files; return what the student needs to know."""
@@ -75,3 +78,5 @@ from cyberlab.challenges import dict_john  # noqa: E402,F401
 from cyberlab.challenges import dict_hydra  # noqa: E402,F401
 from cyberlab.challenges import web_gobuster  # noqa: E402,F401
 from cyberlab.challenges import net_nmap  # noqa: E402,F401
+from cyberlab.challenges import web_idor  # noqa: E402,F401
+from cyberlab.challenges import web_log_forensics  # noqa: E402,F401

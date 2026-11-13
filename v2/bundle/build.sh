@@ -20,6 +20,7 @@ cp -R "$V2/bin" "$V2/cyberlab" "$V2/setup.sh" "$V2/README.md" "$V2/DESIGN.md" "$
 find "$STAGE/cyberlab" -name __pycache__ -type d -prune -exec rm -rf {} +
 cp -R "$TOOLS" "$STAGE/tools"
 cp "$HERE/install.sh" "$HERE/README.txt" "$STAGE/"
+find "$STAGE" -type f \( -name '*.sh' -o -path '*/bin/cyberlab' \) -exec sed -i 's/\r$//' {} +
 chmod +x "$STAGE/install.sh" "$STAGE/cyberlab/setup.sh" "$STAGE/cyberlab/bin/cyberlab" "$STAGE/tools/install.sh"
 
 (cd "$OUT" && tar czf "$NAME.tar.gz" "$NAME")

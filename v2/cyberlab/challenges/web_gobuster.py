@@ -88,4 +88,7 @@ register(WebGobuster(
         "Watch the access log: thousands of 404s from one address in a minute is this attack.",
         "Run gobuster against your own site before someone else does.",
     ],
+    ap_unit="Unit 5",
+    ap_topic="5.1 Application and Data Vulnerabilities and Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

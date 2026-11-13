@@ -62,4 +62,7 @@ register(WebSqli(
         "Store password hashes, not passwords, so a dumped table isn't a list of logins.",
         "Give the application's database account only the access it needs.",
     ],
+    ap_unit="Unit 5",
+    ap_topic="5.1 Application and Data Vulnerabilities and Attacks",
+    ap_skill=["Analyze Risk", "Mitigate Risk", "Detect Attacks"],
 ))

@@ -58,7 +58,8 @@ def flag_box(flag: str) -> str:
 
 def lesson(heading: str, paragraphs: Iterable[str],
            snippets: Sequence[Tuple[str, str]] = (), submit: str = "", code: str = "",
-           real_world: str = "", defend: Iterable[str] = ()) -> str:
+           real_world: str = "", defend: Iterable[str] = (), ap_unit: str = "",
+           ap_topic: str = "", ap_skill: Iterable[str] = ()) -> str:
     """The "what just happened" box. Everything is escaped here, so callers
     pass plain text (including whatever the student typed). `code` is shown
     as a block right after the first paragraph (the query that ran, say)."""
@@ -78,6 +79,11 @@ def lesson(heading: str, paragraphs: Iterable[str],
         out.append("<h3>How to defend</h3><ul>")
         out.extend(f"<li>{html.escape(item)}</li>" for item in advice)
         out.append("</ul>")
+    skills = ", ".join(ap_skill)
+    if ap_unit and ap_topic:
+        out.append(f"<h3>AP Cybersecurity alignment</h3><p>{html.escape(ap_unit)}: "
+                   f"{html.escape(ap_topic)}<br>Skills: "
+                   f"{html.escape(skills or 'Not specified')}</p>")
     out.append("</section>")
     return "".join(out)
 
@@ -89,8 +95,12 @@ def challenge_lesson(challenge_id: str, heading: str, paragraphs: Iterable[str],
     from cyberlab.challenges import REGISTRY
 
     challenge = REGISTRY[challenge_id]
-    return lesson(heading, paragraphs, snippets, submit, code,
-                  real_world=challenge.real_world, defend=challenge.defend)
+    return lesson(
+        heading, paragraphs, snippets, submit, code,
+        real_world=challenge.real_world, defend=challenge.defend,
+        ap_unit=challenge.ap_unit, ap_topic=challenge.ap_topic,
+        ap_skill=challenge.ap_skill,
+    )
 
 
 class LabHandler(BaseHTTPRequestHandler):

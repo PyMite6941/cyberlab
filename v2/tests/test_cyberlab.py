@@ -54,6 +54,14 @@ def accepting(port: int) -> bool:
         return False
 
 
+def get_path(port: int, path: str):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
+            return response.status, response.read().decode()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode()
+
+
 class TempHome(unittest.TestCase):
     def setUp(self) -> None:
         self.home = Path(tempfile.mkdtemp(prefix="cyberlab-test-"))
@@ -117,6 +125,17 @@ class TestWebapp(TempHome):
         self.assertIn("Why it matters in practice", body)
         self.assertIn("How to defend", body)
 
+    def test_idor_returns_another_record_only_on_the_vulnerable_route(self):
+        status, body = get_path(self.port, "/account?id=100")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-idor"), body)
+        self.assertIn("AP Cybersecurity alignment", body)
+
+        status, body = get_path(self.port, "/secure/account?id=100")
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.ws.flag("web-idor"), body)
+        self.assertIn("object", body.lower())
+
     def test_sql_injection_logs_in_as_admin(self):
         for payload in INJECTIONS:
             with self.subTest(payload=payload):
@@ -163,7 +182,22 @@ class TestCli(TempHome):
         self.assertIn("Correct", right.stdout)
         self.assertIn("Why it matters in practice", right.stdout)
         self.assertIn("How to defend", right.stdout)
+        self.assertIn("parameterized queries", right.stdout.lower())
         self.assertIn("[x] web-sqli", self.cyberlab("list").stdout)
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_idor_end_to_end(self):
+        started = self.cyberlab("start", "web-idor")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/account", started.stdout).group(1))
+        status, body = get_path(port, "/account?id=100")
+        self.assertEqual(status, 200)
+        flag = re.search(r"FLAG\{[0-9a-f]+\}", body).group(0)
+
+        solved = self.cyberlab("submit", "web-idor", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Mitigate Risk", solved.stdout)
 
     def test_learn_replays_the_debrief_without_starting_a_target(self):
         result = self.cyberlab("learn", "web-sqli")
@@ -173,6 +207,18 @@ class TestCli(TempHome):
         self.assertIn("Try these commands", result.stdout)
         self.assertIn("How to defend", result.stdout)
         self.assertFalse(Workspace(self.home).state["targets"])
+
+    def test_log_forensics_challenge_accepts_evidence_and_shows_ap_alignment(self):
+        started = self.cyberlab("start", "web-log-forensics")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.assertIn("access.log", started.stdout)
+
+        challenge = REGISTRY["web-log-forensics"]
+        answer = challenge._answer(Workspace(self.home))
+        solved = self.cyberlab("submit", "web-log-forensics", answer)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Detect Attacks", solved.stdout)
 
     @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
     def test_start_twice_reuses_the_running_target(self):
@@ -269,6 +315,23 @@ class TestChallengeDebriefs(TempHome):
                 self.assertTrue(challenge.real_world.strip())
                 self.assertTrue(challenge.defend)
                 self.assertTrue(challenge.snippets(ws))
+                self.assertTrue(challenge.ap_unit)
+                self.assertTrue(challenge.ap_topic)
+                self.assertTrue(challenge.ap_skill)
+
+    def test_web_log_answer_requires_the_correct_ip_and_evidence_line(self):
+        challenge = REGISTRY["web-log-forensics"]
+        ws = Workspace(self.home)
+        details = challenge.setup(ws)
+        self.assertIn("line number", details)
+        answer = challenge._answer(ws)
+        self.assertTrue(challenge.check(ws, answer))
+        ip, line = answer.split(":")
+        self.assertTrue(challenge.check(ws, f"{ip} line {line}"))
+        self.assertFalse(challenge.check(ws, f"{ip}:6"))
+        self.assertFalse(challenge.check(ws, "192.0.2.1:7"))
+        log_path = self.home / "web-log-forensics" / "access.log"
+        self.assertIn("..%2f..%2fetc%2fpasswd", log_path.read_text(encoding="utf-8").splitlines()[6])
 
 
 import struct  # noqa: E402
@@ -374,7 +437,13 @@ class TestNetworkChallenges(TempHome):
 class TestStopIsSafe(TempHome):
     def test_stop_never_kills_an_unrelated_process(self):
         sleeper = subprocess.Popen(["sleep", "30"])
-        self.addCleanup(sleeper.kill)
+
+        def stop_sleeper():
+            if sleeper.poll() is None:
+                sleeper.kill()
+            sleeper.wait()
+
+        self.addCleanup(stop_sleeper)
         ws = Workspace(self.home)
         ws.state["targets"]["webapp"] = {"pid": sleeper.pid, "port": 1}  # e.g. a reused pid
         ws.save()

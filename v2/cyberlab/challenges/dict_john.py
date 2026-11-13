@@ -120,4 +120,7 @@ register(DictJohn(
         "password random and different.",
         "Turn on two-factor authentication, so a cracked password alone isn't enough.",
     ],
+    ap_unit="Units 4 and 5",
+    ap_topic="4.2 Authentication; 5.2 Access Controls",
+    ap_skill=["Analyze Risk", "Mitigate Risk"],
 ))

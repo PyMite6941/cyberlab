@@ -43,13 +43,15 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
 ## Milestones
 
 1. **Done:** CLI, workspace, flags, target processes, `web-sqli`, tests and CI.
-2. **In progress:** web track includes reflected XSS and forgotten-directory
-   discovery; access-control mistakes and unsafe upload validation remain.
+2. **In progress:** web track includes reflected XSS, forgotten-directory
+   discovery and IDOR; session handling and safe upload validation remain.
 3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
    credentials, port scan, DNS tunnel), plus a local service-discovery lab.
-4. Log track: real log files for grep (SSH brute force, password spray,
-   privilege escalation, web attacks in an access log).
+4. **In progress:** synthetic web access-log forensics is implemented; SSH
+   brute force, password spray and privilege-escalation investigations remain.
 5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).
+6. **In progress:** challenges expose AP Cybersecurity unit, topic and skill
+   metadata for `cyberlab learn` and classroom alignment.
 
 ## Extending the network track
 
