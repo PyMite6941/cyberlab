@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap, smurf
 from cyberlab.challenges import Challenge, register
@@ -27,6 +29,17 @@ class NetSmurfVictim(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip() == self._victim(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-smurf-victim" / "capture.pcap"))
+        return [
+            ("Open the capture in Wireshark", f"wireshark {capture}"),
+            ("Rank where the echo replies are going; the victim is the top destination",
+             f"tshark -r {capture} -Y 'icmp.type==0' -T fields -e ip.dst "
+             "| sort | uniq -c | sort -rn | head"),
+            ("Show the forged requests: that same address as source, to a broadcast",
+             f"tshark -r {capture} -Y 'icmp.type==8' -T fields -e ip.src -e ip.dst"),
+        ]
+
 
 register(NetSmurfVictim(
     id="net-smurf-victim",
@@ -43,4 +56,20 @@ register(NetSmurfVictim(
         "tshark -r capture.pcap -Y 'icmp.type==0' -T fields -e ip.dst | sort | uniq -c | sort -rn | head",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You traced a smurf attack: echo requests were sent with the victim's address "
+             "forged as the source to a broadcast, so every host on that network answered "
+             "the victim. The victim is the address all the replies converge on, and the "
+             "forged source of the broadcast requests."),
+    real_world=("Reflection-and-amplification attacks use innocent third parties to flood a "
+                "target, which also hides the real attacker. The reply count shows how many "
+                "reflectors answered, not how many attackers there were: one attacker forged "
+                "every request."),
+    defend=[
+        "Disable directed-broadcast forwarding on routers so a broadcast ping is not amplified.",
+        "Apply anti-spoofing (BCP 38 ingress filtering) so forged source addresses are dropped.",
+        "Rate-limit ICMP and watch for many replies to a host that sent no matching requests.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks; 3.5 Detecting Network Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

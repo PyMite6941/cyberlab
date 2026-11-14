@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap
 from cyberlab.challenges import Challenge, register
@@ -48,6 +50,19 @@ class NetDnsTunnel(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip().lower().rstrip(".") == self._domain(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-dns-tunnel" / "capture.pcap"))
+        return [
+            ("Open DNS queries in Wireshark",
+             f"wireshark {capture}"),
+            ("List TXT queries and the names they request",
+             f"tshark -r {capture} -Y 'dns.qry.type==16' "
+             "-T fields -e ip.src -e dns.qry.name"),
+            ("Rank requested domains to find unusually repeated destinations",
+             f"tshark -r {capture} -Y dns -T fields -e dns.qry.name "
+             "| sort | uniq -c | sort -rn | head"),
+        ]
+
 
 register(NetDnsTunnel(
     id="net-dns-tunnel",
@@ -65,4 +80,21 @@ register(NetDnsTunnel(
         "deadbeef....xabcd123.net  ->  xabcd123.net",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You spotted DNS queries carrying long, random-looking labels beneath one "
+             "domain. Repeated high-entropy names and unusual record types can indicate "
+             "data being encoded into DNS lookups, rather than ordinary name resolution."),
+    real_world=("DNS is often allowed through network boundaries, which makes it an "
+                "attractive channel for command-and-control or data exfiltration. A single "
+                "odd query is not enough to conclude that a tunnel exists; volume, label "
+                "length, entropy, query type and destination reputation provide useful "
+                "context."),
+    defend=[
+        "Route client DNS through approved resolvers and block direct external DNS where practical.",
+        "Monitor query volume, long or high-entropy labels, uncommon record types and rare domains.",
+        "Use protective DNS filtering and investigate repeated anomalous domains.",
+        "Correlate DNS alerts with endpoint and network telemetry before blocking business-critical traffic.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.5 Detecting Network Attacks",
+    ap_skill=["Detect Attacks"],
 ))

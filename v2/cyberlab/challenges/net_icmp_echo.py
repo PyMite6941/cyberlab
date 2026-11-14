@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap
 from cyberlab.challenges import Challenge, register
@@ -39,6 +41,16 @@ class NetIcmpEcho(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip() == self._responder(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-icmp-echo" / "capture.pcap"))
+        return [
+            ("Open the capture in Wireshark", f"wireshark {capture}"),
+            ("List only ICMP echo requests (type 8) and replies (type 0)",
+             f"tshark -r {capture} -Y icmp -T fields -e icmp.type -e ip.src -e ip.dst"),
+            ("Show the source of the one echo reply (the host that answered)",
+             f"tshark -r {capture} -Y 'icmp.type==0' -T fields -e ip.src"),
+        ]
+
 
 register(NetIcmpEcho(
     id="net-icmp-echo",
@@ -53,4 +65,19 @@ register(NetIcmpEcho(
         "tshark -r capture.pcap -Y 'icmp.type==0' -T fields -e ip.src",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You read ICMP echo traffic and matched a request to its reply using the "
+             "shared identifier and sequence number. Only one pinged host answered, so "
+             "its echo reply is the evidence it was up."),
+    real_world=("ICMP echo (ping) is how hosts and monitoring tools test reachability. "
+                "Reading it is the basis for host discovery and for recognising when ICMP "
+                "is being misused; a reply confirms a host answered, but absence of a reply "
+                "does not prove a host is down, since ICMP is often filtered."),
+    defend=[
+        "Rate-limit and, where appropriate, filter inbound ICMP at the network edge.",
+        "Monitor for unusual ICMP volume or patterns rather than blocking it blindly.",
+        "Remember hosts may be up but configured not to answer ping.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.5 Detecting Network Attacks",
+    ap_skill=["Detect Attacks"],
 ))

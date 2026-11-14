@@ -48,5 +48,13 @@ Thumbs.db
 
 # Local working notes (do not publish)
 todo.md
+future-todo.md
+EXPANSION.md
+tests/
 v2/tools-pack/out/
 v2/bundle/out/
+
+# Class bundle: the compressed archive is too large for git, and the
+# unpacked staging directory is just its contents
+dist/*.tar.gz
+dist/*/

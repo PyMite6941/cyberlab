@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap, smurf
 from cyberlab.challenges import Challenge, register
@@ -32,6 +34,17 @@ class NetSmurfAmp(Challenge):
         except ValueError:
             return False
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-smurf-amp" / "capture.pcap"))
+        return [
+            ("Open the capture in Wireshark", f"wireshark {capture}"),
+            ("Find the victim: the top destination of the echo replies",
+             f"tshark -r {capture} -Y 'icmp.type==0' -T fields -e ip.dst "
+             "| sort | uniq -c | sort -rn | head -1"),
+            ("Count the distinct reflectors (unique reply sources), not total replies",
+             f"tshark -r {capture} -Y 'icmp.type==0' -T fields -e ip.src | sort -u | wc -l"),
+        ]
+
 
 register(NetSmurfAmp(
     id="net-smurf-amp",
@@ -51,4 +64,19 @@ register(NetSmurfAmp(
         "forged every request.",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You measured the amplification of a smurf attack by counting distinct "
+             "reflectors. Each forged request made every reflector answer the victim, so "
+             "replies equal reflectors times requests — a few packets become many."),
+    real_world=("Amplification is what makes reflection attacks dangerous: a small amount "
+                "of attacker traffic produces a large flood at the victim. The number of "
+                "reflectors is not the number of attackers; counting reply sources measures "
+                "amplification, not attribution."),
+    defend=[
+        "Disable directed broadcasts and apply anti-spoofing so the amplifier cannot be used.",
+        "Harden or patch services known to amplify (ICMP here; DNS, NTP, memcached elsewhere).",
+        "Use upstream DDoS mitigation and traffic baselining to absorb and spot amplified floods.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks; 3.5 Detecting Network Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

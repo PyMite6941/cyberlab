@@ -54,6 +54,14 @@ def accepting(port: int) -> bool:
         return False
 
 
+def get_path(port: int, path: str):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
+            return response.status, response.read().decode()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode()
+
+
 class TempHome(unittest.TestCase):
     def setUp(self) -> None:
         self.home = Path(tempfile.mkdtemp(prefix="cyberlab-test-"))
@@ -108,12 +116,34 @@ class TestWebapp(TempHome):
         self.assertIn("Welcome back, alice", body)
         self.assertNotIn("FLAG{", body)
 
+    def test_reflected_xss_page_explains_impact_and_defenses(self):
+        query = urllib.parse.urlencode({"q": "<script>alert(1)</script>"})
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{self.port}/search?{query}", timeout=5) as response:
+            body = response.read().decode()
+        self.assertIn(self.ws.flag("web-xss"), body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
+
+    def test_idor_returns_another_record_only_on_the_vulnerable_route(self):
+        status, body = get_path(self.port, "/account?id=100")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-idor"), body)
+        self.assertIn("AP Cybersecurity alignment", body)
+
+        status, body = get_path(self.port, "/secure/account?id=100")
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.ws.flag("web-idor"), body)
+        self.assertIn("object", body.lower())
+
     def test_sql_injection_logs_in_as_admin(self):
         for payload in INJECTIONS:
             with self.subTest(payload=payload):
                 status, body = post_login(self.port, payload)
                 self.assertEqual(status, 200)
                 self.assertIn(self.ws.flag("web-sqli"), body)
+                self.assertIn("Why it matters in practice", body)
+                self.assertIn("How to defend", body)
 
     def test_quote_shows_a_database_error(self):
         status, body = post_login(self.port, "'")
@@ -150,11 +180,51 @@ class TestCli(TempHome):
         right = self.cyberlab("submit", "web-sqli", flag)
         self.assertEqual(right.returncode, 0, right.stdout)
         self.assertIn("Correct", right.stdout)
+        self.assertIn("Why it matters in practice", right.stdout)
+        self.assertIn("How to defend", right.stdout)
+        self.assertIn("parameterized queries", right.stdout.lower())
         self.assertIn("[x] web-sqli", self.cyberlab("list").stdout)
 
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_idor_end_to_end(self):
+        started = self.cyberlab("start", "web-idor")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/account", started.stdout).group(1))
+        status, body = get_path(port, "/account?id=100")
+        self.assertEqual(status, 200)
+        flag = re.search(r"FLAG\{[0-9a-f]+\}", body).group(0)
+
+        solved = self.cyberlab("submit", "web-idor", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Mitigate Risk", solved.stdout)
+
+    def test_learn_replays_the_debrief_without_starting_a_target(self):
+        result = self.cyberlab("learn", "web-sqli")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("What you learned", result.stdout)
+        self.assertIn("Why it matters in practice", result.stdout)
+        self.assertIn("Try these commands", result.stdout)
+        self.assertIn("How to defend", result.stdout)
+        self.assertFalse(Workspace(self.home).state["targets"])
+
+    def test_log_forensics_challenge_accepts_evidence_and_shows_ap_alignment(self):
+        started = self.cyberlab("start", "web-log-forensics")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.assertIn("access.log", started.stdout)
+
+        challenge = REGISTRY["web-log-forensics"]
+        answer = challenge._answer(Workspace(self.home))
+        solved = self.cyberlab("submit", "web-log-forensics", answer)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Detect Attacks", solved.stdout)
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
     def test_start_twice_reuses_the_running_target(self):
         self.assertEqual(self.start(), self.start())
 
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
     def test_stop_stops_the_target(self):
         port = self.start()
         r = self.cyberlab("stop")
@@ -234,6 +304,34 @@ class TestReport(TempHome):
         self.assertEqual(json.loads(out.read_text())["student"], "Alex P")
 
         self.assertIn("--name", run().stderr)  # no name given: says how to set one
+
+
+class TestChallengeDebriefs(TempHome):
+    def test_every_challenge_has_a_practical_debrief_and_commands(self):
+        ws = Workspace(self.home)
+        for challenge in REGISTRY.values():
+            with self.subTest(challenge=challenge.id):
+                self.assertTrue(challenge.learned.strip())
+                self.assertTrue(challenge.real_world.strip())
+                self.assertTrue(challenge.defend)
+                self.assertTrue(challenge.snippets(ws))
+                self.assertTrue(challenge.ap_unit)
+                self.assertTrue(challenge.ap_topic)
+                self.assertTrue(challenge.ap_skill)
+
+    def test_web_log_answer_requires_the_correct_ip_and_evidence_line(self):
+        challenge = REGISTRY["web-log-forensics"]
+        ws = Workspace(self.home)
+        details = challenge.setup(ws)
+        self.assertIn("line number", details)
+        answer = challenge._answer(ws)
+        self.assertTrue(challenge.check(ws, answer))
+        ip, line = answer.split(":")
+        self.assertTrue(challenge.check(ws, f"{ip} line {line}"))
+        self.assertFalse(challenge.check(ws, f"{ip}:6"))
+        self.assertFalse(challenge.check(ws, "192.0.2.1:7"))
+        log_path = self.home / "web-log-forensics" / "access.log"
+        self.assertIn("..%2f..%2fetc%2fpasswd", log_path.read_text(encoding="utf-8").splitlines()[6])
 
 
 import struct  # noqa: E402
@@ -387,7 +485,13 @@ class TestIcmpChallenges(TempHome):
 class TestStopIsSafe(TempHome):
     def test_stop_never_kills_an_unrelated_process(self):
         sleeper = subprocess.Popen(["sleep", "30"])
-        self.addCleanup(sleeper.kill)
+
+        def stop_sleeper():
+            if sleeper.poll() is None:
+                sleeper.kill()
+            sleeper.wait()
+
+        self.addCleanup(stop_sleeper)
         ws = Workspace(self.home)
         ws.state["targets"]["webapp"] = {"pid": sleeper.pid, "port": 1}  # e.g. a reused pid
         ws.save()
@@ -417,9 +521,13 @@ class TestDictJohn(TempHome):
         pw = c._password(ws)
         self.assertIn(pw, words)
 
-        # The hash is the MD5 of the password.
-        line = Path(hash_path).read_text().strip()
-        self.assertEqual(line, f"admin:{__import__('hashlib').md5(pw.encode()).hexdigest()}")
+        # Every account is represented, and its hash matches one word in the list.
+        hashes = dict(line.split(":", 1) for line in Path(hash_path).read_text().splitlines())
+        self.assertEqual(set(hashes), {"admin", "alice", "bob"})
+        self.assertEqual(hashes["admin"], c._hash(ws))
+        for user in hashes:
+            self.assertIn(c._user_password(ws, user), words)
+            self.assertEqual(hashes[user], c._hash(ws, user))
 
     def test_setup_quotes_paths_in_commands(self):
         ws = Workspace(self.home / "student files")
@@ -431,7 +539,7 @@ class TestDictJohn(TempHome):
 
         self.assertEqual(commands[0][2], f"--wordlist={word_path}")
         self.assertEqual(commands[0][3], hash_path)
-        self.assertEqual(commands[1], ["john", "--show", hash_path])
+        self.assertEqual(commands[1], ["john", "--show", "--format=raw-md5", hash_path])
 
     def test_check_accepts_correct_and_rejects_wrong(self):
         ws = Workspace(self.home)
@@ -475,6 +583,8 @@ class TestHttpAuth(TempHome):
         self.assertEqual(status, 200)
         self.assertIn(self.ws.flag("dict-hydra"), body)
         self.assertIn("Welcome back, admin", body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
 
 
 class TestDictHydra(TempHome):
@@ -514,6 +624,101 @@ class TestDictHydra(TempHome):
         self.assertTrue(c.check(ws, pw))
         self.assertTrue(c.check(ws, "  " + pw + "\n"))
         self.assertFalse(c.check(ws, "wrongpassword"))
+        self.assertFalse(c.check(ws, ""))
+
+
+class TestWebDirs(TempHome):
+    """Logic tests for the webdirs target (separate from webapp and httpauth)."""
+
+    def setUp(self):
+        super().setUp()
+        import cyberlab.webdirs as _wd
+
+        self.ws = Workspace(self.home)
+        self.server = _wd.make_server(0, self.ws)
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def test_listens_on_loopback_only(self):
+        self.assertEqual(self.server.server_address[0], "127.0.0.1")
+
+    def test_public_pages_return_200(self):
+        for path in ("/", "/about"):
+            status, body = self._get(path)
+            self.assertEqual(status, 200, path)
+
+    def test_admin_is_forbidden(self):
+        status, body = self._get("/admin")
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.ws.flag("web-gobuster"), body)
+
+    def test_unlinked_directory_exposes_backup_not_flag_on_listing(self):
+        from cyberlab import wordlists
+
+        leftover = wordlists.hidden_directory(self.ws)
+        status, body = self._get("/" + leftover)
+        self.assertEqual(status, 200)
+        self.assertIn("db-backup.sql", body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
+        self.assertNotIn(self.ws.flag("web-gobuster"), body)
+
+        status, body = self._get("/" + leftover + "/db-backup.sql")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-gobuster"), body)
+
+    def test_unknown_path_is_404(self):
+        status, _ = self._get("/no-such-dir")
+        self.assertEqual(status, 404)
+
+    def _get(self, path):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}", timeout=5) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+
+class TestWebGobuster(TempHome):
+    """Logic tests for the gobuster directory-enumeration challenge."""
+
+    def test_setup_writes_wordlist_with_hidden_dir(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["web-gobuster"]
+        with mock.patch("cyberlab.challenges.web_gobuster.targets.start", return_value=8092):
+            details = c.setup(ws)
+        wl_line = [l for l in details.splitlines() if l.startswith("Wordlist:")][0]
+        wl_path = wl_line.split("Wordlist:", 1)[1].strip()
+        self.assertTrue(Path(wl_path).exists(), wl_path)
+        words = Path(wl_path).read_text().split()
+        self.assertIn("admin", words)
+        self.assertTrue(len(words) > 3, "wordlist should include decoys")
+
+    def test_check_accepts_flag_and_rejects_wrong(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["web-gobuster"]
+        flag = ws.flag("web-gobuster")
+        self.assertTrue(c.check(ws, flag))
+        self.assertTrue(c.check(ws, "  " + flag + "\n"))
+        self.assertFalse(c.check(ws, "FLAG{nope}"))
+        self.assertFalse(c.check(ws, ""))
+
+
+class TestNetNmap(TempHome):
+    """Logic tests for the nmap service-detection challenge."""
+
+    def test_setup_and_check_use_the_started_port(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["net-nmap"]
+        with mock.patch("cyberlab.challenges.net_nmap.targets.start", return_value=9000):
+            details = c.setup(ws)
+        base = 9000
+        self.assertIn(f"{base}-{base + 99}", details)
+        self.assertTrue(c.check(ws, ws.flag("net-nmap")))
+        self.assertTrue(c.check(ws, "  " + ws.flag("net-nmap") + "\n"))
+        self.assertFalse(c.check(ws, "1,2,3"))
         self.assertFalse(c.check(ws, ""))
 
 
