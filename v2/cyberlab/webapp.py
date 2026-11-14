@@ -16,15 +16,30 @@ Routes:
                           page and its script runs in the visitor's browser.
     GET  /account?id=     web-idor: a simulated Alice session can read any
                           account record by changing its identifier.
+    GET  /session         web-session: an unsigned JWT role claim is trusted.
+    POST /upload          web-upload: trusts a double extension and client MIME type.
     /secure/login, /secure/search, /secure/account
                           fixed versions for direct comparison.
+    /secure/session      verifies the JWT signature before trusting claims.
+    /secure/upload       validates images and stores them outside the public directory.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import hashlib
+import hmac
 import html
+import json
+import re
+import secrets
 import sqlite3
+import time
+from email.parser import BytesParser
+from email.policy import default
+from http.cookies import CookieError, SimpleCookie
 from html.parser import HTMLParser
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -106,11 +121,20 @@ class Handler(pages.LabHandler):
             self.search(url.path, query.get("q", [None])[0])
         elif url.path in ("/account", "/secure/account"):
             self.account(url.path, query.get("id", ["101"])[0])
+        elif url.path in ("/session", "/secure/session"):
+            self.session(url.path)
+        elif url.path in ("/upload", "/secure/upload"):
+            self.upload_form(url.path)
+        elif url.path.startswith("/uploads/"):
+            self.serve_upload(url.path.removeprefix("/uploads/"))
         else:
             self.not_found()
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
+        if path in ("/upload", "/secure/upload"):
+            self.upload(path)
+            return
         if path not in ("/login", "/secure/login"):
             self.not_found()
             return
@@ -299,9 +323,285 @@ class Handler(pages.LabHandler):
             )
         self.send_page(200, "Account", body)
 
+    # ----- web-session -----
+
+    def session(self, path: str) -> None:
+        secure = path == "/secure/session"
+        token = self.session_cookie()
+        if token is None:
+            token = create_session_token("staff", self.ws, signed=secure)
+            body = ('<p>Signed in as Alice (staff). The session cookie is ready; '
+                    'inspect it with curl -i, then compare the vulnerable and fixed routes.</p>')
+            self.send_page(200, "Staff session", body, {
+                "Set-Cookie": f"nw_auth={token}; Path=/; HttpOnly; SameSite=Lax",
+            })
+            return
+
+        claims = read_session_token(token, self.ws, verify_signature=secure)
+        if claims is None:
+            body = '<p class="error">Session token rejected.</p>'
+            if secure:
+                body += pages.challenge_lesson(
+                    "web-session",
+                    "Why this token was rejected",
+                    ["The fixed route verifies the HS256 signature before trusting any "
+                     "claim. A changed role, an unsigned token, or an invalid signature "
+                     "cannot create an administrator session."],
+                )
+            self.send_page(401, "Session rejected", body)
+            return
+
+        role = claims["role"]
+        body = f"<p>Signed in as {html.escape(claims['sub'])} ({html.escape(role)}).</p>"
+        if role == "admin":
+            body += pages.flag_box(self.ws.flag("web-session"))
+            body += pages.challenge_lesson(
+                "web-session",
+                "What just happened",
+                ["The vulnerable endpoint decoded the JWT payload but did not verify its "
+                 "signature. Changing the role claim from staff to admin was enough to "
+                 "forge an administrator session.",
+                 "A JWT payload is encoded, not encrypted. Anyone holding the token can "
+                 "read its claims; the signature proves they were issued by a trusted signer "
+                 "but does not hide them."],
+                [("Compare with the fixed endpoint",
+                  f"curl -i -H 'Cookie: nw_auth={token}' "
+                  f"{self.base_url}/secure/session")],
+                submit="cyberlab submit web-session " + self.ws.flag("web-session"),
+            )
+        self.send_page(200, "Staff session", body)
+
+    def session_cookie(self) -> Optional[str]:
+        cookies = SimpleCookie()
+        try:
+            cookies.load(self.headers.get("Cookie", ""))
+        except CookieError:
+            return None
+        morsel = cookies.get("nw_auth")
+        return morsel.value if morsel else None
+
+    # ----- web-upload -----
+
+    def upload_form(self, path: str) -> None:
+        action = html.escape(path, quote=True)
+        body = (f'<form method="post" action="{action}" enctype="multipart/form-data">'
+                '<label>Profile image <input type="file" name="file"></label>'
+                '<button type="submit">Upload</button></form>')
+        self.send_page(200, "Profile image upload", body)
+
+    def upload(self, path: str) -> None:
+        uploaded = self.read_upload()
+        if uploaded is None:
+            return
+        filename, media_type, contents = uploaded
+        secure = path == "/secure/upload"
+        upload_id = secrets.token_hex(16)
+
+        if secure:
+            rejection = self.validate_image_upload(filename, media_type, contents)
+            if rejection:
+                body = ('<p class="error">Upload rejected: '
+                        + html.escape(rejection) + '</p>')
+                body += pages.challenge_lesson(
+                    "web-upload",
+                    "Why this upload was blocked",
+                    ["The fixed route checks the filename, declared media type, and file "
+                     "signature before storing an image. A user-controlled extension or "
+                     "Content-Type is not proof of what the bytes contain."],
+                )
+                self.send_page(415, "Upload rejected", body)
+                return
+
+            private_path = self.ws.path("web-upload", "private", upload_id)
+            private_path.write_bytes(contents)
+            self.send_page(
+                201,
+                "Upload stored safely",
+                '<p>Image accepted and stored outside the public web directory. '
+                'It is not addressable as a same-origin page.</p>',
+            )
+            return
+
+        public_path = self.ws.path("web-upload", "public", upload_id)
+        public_path.write_bytes(contents)
+        metadata_path = self.ws.path("web-upload", "public", upload_id + ".json")
+        metadata_path.write_text(
+            json.dumps({"filename": filename, "media_type": media_type}),
+            encoding="utf-8",
+        )
+        body = f'<p>Upload accepted. <a href="/uploads/{upload_id}">View uploaded file</a>.</p>'
+        is_html_bypass = (
+            filename.lower().endswith(".jpg.html")
+            and media_type.lower() == "image/jpeg"
+            and contents.lstrip().lower().startswith((b"<!doctype html", b"<html"))
+        )
+        if is_html_bypass:
+            body += pages.flag_box(self.ws.flag("web-upload"))
+            body += pages.challenge_lesson(
+                "web-upload",
+                "What just happened",
+                ["The upload accepted an HTML file named with a double extension and trusted "
+                 "the browser-supplied image/jpeg media type. The public file is then served "
+                 "inline from the same site, where active HTML can run in that site's origin.",
+                 "A file extension or Content-Type header is only a claim from the client; "
+                 "neither validates the actual content."],
+                [("Open the uploaded file on this local target",
+                  f"curl -i {self.base_url}/uploads/{upload_id}"),
+                 ("Try the same upload against the fixed validator",
+                  f"curl -i -F 'file=@avatar.jpg.html;type=image/jpeg;"
+                  f"filename=avatar.jpg.html' {self.base_url}/secure/upload")],
+                submit="cyberlab submit web-upload " + self.ws.flag("web-upload"),
+            )
+        self.send_page(201, "Upload accepted", body, {
+            "Location": f"/uploads/{upload_id}",
+        })
+
+    def read_upload(self) -> Optional[Tuple[str, str, bytes]]:
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self.send_page(400, "Invalid upload", '<p class="error">Invalid Content-Length.</p>')
+            return None
+        if length <= 0:
+            self.send_page(400, "Invalid upload", '<p class="error">Upload is empty.</p>')
+            return None
+        if length > 1_048_576 + 16_384:
+            self.send_page(413, "Upload too large", '<p class="error">Maximum upload size is 1 MiB.</p>')
+            return None
+
+        content_type = self.headers.get("Content-Type", "")
+        envelope = (
+            b"Content-Type: " + content_type.encode("latin-1")
+            + b"\r\nMIME-Version: 1.0\r\n\r\n"
+        )
+        message = BytesParser(policy=default).parsebytes(envelope + self.rfile.read(length))
+        if not message.is_multipart():
+            self.send_page(400, "Invalid upload", '<p class="error">Expected multipart form data.</p>')
+            return None
+
+        files = []
+        for part in message.iter_parts():
+            if (part.get_content_disposition() == "form-data"
+                    and part.get_param("name", header="content-disposition") == "file"
+                    and part.get_filename() is not None):
+                contents = part.get_payload(decode=True)
+                files.append((
+                    part.get_filename(),
+                    part.get_content_type(),
+                    contents if contents is not None else b"",
+                ))
+        if len(files) != 1:
+            self.send_page(400, "Invalid upload", '<p class="error">Upload exactly one file.</p>')
+            return None
+        filename, media_type, contents = files[0]
+        if len(contents) > 1_048_576:
+            self.send_page(413, "Upload too large", '<p class="error">Maximum upload size is 1 MiB.</p>')
+            return None
+        return filename, media_type, contents
+
+    @staticmethod
+    def validate_image_upload(filename: str, media_type: str, contents: bytes) -> Optional[str]:
+        if (not filename or len(filename) > 128 or "/" in filename
+                or "\\" in filename or filename in (".", "..")):
+            return "Use a simple image filename."
+        extension = Path(filename).suffix.lower()
+        expected = {
+            ".png": ("image/png", b"\x89PNG\r\n\x1a\n"),
+            ".jpg": ("image/jpeg", b"\xff\xd8\xff"),
+            ".jpeg": ("image/jpeg", b"\xff\xd8\xff"),
+        }.get(extension)
+        if expected is None:
+            return "Only PNG and JPEG images are allowed."
+        expected_type, signature = expected
+        if media_type.lower() != expected_type:
+            return "The declared media type does not match the image extension."
+        if not contents.startswith(signature):
+            return "The file bytes do not match an image signature."
+        return None
+
+    def serve_upload(self, upload_id: str) -> None:
+        if not re.fullmatch(r"[0-9a-f]{32}", upload_id):
+            self.not_found()
+            return
+        public_dir = self.ws.path("web-upload", "public", ".placeholder").parent
+        try:
+            metadata = json.loads(
+                (public_dir / (upload_id + ".json")).read_text(encoding="utf-8"),
+            )
+            contents = (public_dir / upload_id).read_bytes()
+        except FileNotFoundError:
+            self.not_found()
+            return
+        filename = metadata.get("filename", "")
+        media_type = "text/html; charset=utf-8" if filename.lower().endswith(".html") else (
+            metadata.get("media_type", "application/octet-stream")
+        )
+        self.send_bytes(200, contents, media_type)
+
 
 def _quote(text: str) -> str:
     return quote(text, safe="")
+
+
+def _b64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(value: str) -> bytes:
+    return base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
+
+
+def _session_signing_key(ws: Workspace) -> bytes:
+    return bytes.fromhex(ws.derive("web-session:signing-key", 64))
+
+
+def create_session_token(
+    role: str, ws: Workspace, *, signed: bool, expires_at: Optional[int] = None,
+) -> str:
+    header = {"alg": "HS256" if signed else "none", "typ": "JWT"}
+    payload = {
+        "iss": "northwind",
+        "sub": "alice",
+        "role": role,
+        "exp": expires_at if expires_at is not None else int(time.time()) + 3600,
+    }
+    signing_input = ".".join((
+        _b64url_encode(json.dumps(header, separators=(",", ":")).encode()),
+        _b64url_encode(json.dumps(payload, separators=(",", ":")).encode()),
+    ))
+    signature = (
+        _b64url_encode(hmac.new(_session_signing_key(ws), signing_input.encode("ascii"),
+                                hashlib.sha256).digest())
+        if signed else ""
+    )
+    return f"{signing_input}.{signature}"
+
+
+def read_session_token(token: str, ws: Workspace, *, verify_signature: bool) -> Optional[dict]:
+    try:
+        header_part, payload_part, signature = token.split(".")
+        header = json.loads(_b64url_decode(header_part))
+        claims = json.loads(_b64url_decode(payload_part))
+        if not isinstance(header, dict) or not isinstance(claims, dict):
+            return None
+        if verify_signature:
+            if header.get("alg") != "HS256":
+                return None
+            signing_input = f"{header_part}.{payload_part}".encode("ascii")
+            expected = _b64url_encode(hmac.new(
+                _session_signing_key(ws), signing_input, hashlib.sha256,
+            ).digest())
+            if not hmac.compare_digest(signature, expected):
+                return None
+        if (claims.get("iss") != "northwind"
+                or claims.get("role") not in ("staff", "admin")
+                or not isinstance(claims.get("sub"), str)
+                or not isinstance(claims.get("exp"), int)
+                or claims["exp"] <= int(time.time())):
+            return None
+        return claims
+    except (ValueError, TypeError, UnicodeDecodeError, binascii.Error):
+        return None
 
 
 HOME = """

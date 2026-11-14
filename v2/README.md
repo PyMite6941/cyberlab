@@ -55,6 +55,8 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `web-sqli` | web | easy | SQL injection: log in as admin without the password |
 | `web-xss` | web | easy | Run JavaScript through a reflected search term |
 | `web-idor` | web | easy | Access a record without an object-level permission check |
+| `web-session` | web | easy | Forge an unsigned JWT role claim; compare signature verification |
+| `web-upload` | web | medium | Bypass a double-extension upload check; compare private storage and validation |
 | `web-gobuster` | web | medium | Find a forgotten directory and its exposed backup |
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
@@ -79,6 +81,8 @@ More are coming: see [DESIGN.md](DESIGN.md).
 | `web-sqli` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
 | `web-xss` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
 | `web-idor` | Unit 5; 5.2 Managerial Controls and Access Controls | Analyze Risk, Mitigate Risk |
+| `web-session` | Unit 4; 4.2 Authentication | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-upload` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
 | `web-gobuster` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Detect Attacks |
 | `web-log-forensics` | Unit 5; 5.6 Detecting Attacks on Data and Applications | Detect Attacks, Analyze Risk, Mitigate Risk |
 

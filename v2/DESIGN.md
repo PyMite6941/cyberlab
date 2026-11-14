@@ -44,7 +44,7 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
 
 1. **Done:** CLI, workspace, flags, target processes, `web-sqli`, tests and CI.
 2. **In progress:** web track includes reflected XSS, forgotten-directory
-   discovery and IDOR; session handling and safe upload validation remain.
+   discovery, IDOR, JWT session tampering, and safe upload validation.
 3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
    credentials, port scan, DNS tunnel), plus a local service-discovery lab.
 4. **In progress:** synthetic web access-log forensics is implemented; SSH

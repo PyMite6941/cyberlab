@@ -80,3 +80,5 @@ from cyberlab.challenges import web_gobuster  # noqa: E402,F401
 from cyberlab.challenges import net_nmap  # noqa: E402,F401
 from cyberlab.challenges import web_idor  # noqa: E402,F401
 from cyberlab.challenges import web_log_forensics  # noqa: E402,F401
+from cyberlab.challenges import web_session  # noqa: E402,F401
+from cyberlab.challenges import web_upload  # noqa: E402,F401

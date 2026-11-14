@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import getpass
+import base64
 import json
 import os
 import re
@@ -21,6 +22,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from http.cookies import SimpleCookie
 from pathlib import Path
 from unittest import mock
 
@@ -30,7 +32,8 @@ sys.path.insert(0, str(V2))
 
 from cyberlab import report, targets  # noqa: E402
 from cyberlab.challenges import REGISTRY  # noqa: E402
-from cyberlab.webapp import make_server  # noqa: E402
+from cyberlab.challenges.web_upload import _PNG_SAMPLE  # noqa: E402
+from cyberlab.webapp import create_session_token, make_server  # noqa: E402
 from cyberlab.workspace import Workspace  # noqa: E402
 
 INJECTIONS = ["admin' --", "' OR 1=1 --", "' OR '1'='1' --"]
@@ -55,11 +58,58 @@ def accepting(port: int) -> bool:
 
 
 def get_path(port: int, path: str):
+    status, body, _ = get_path_with_headers(port, path)
+    return status, body
+
+
+def get_path_with_headers(port: int, path: str, headers=None):
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}", headers=headers or {},
+    )
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as response:
-            return response.status, response.read().decode()
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read().decode(), response.headers
     except urllib.error.HTTPError as error:
-        return error.code, error.read().decode()
+        return error.code, error.read().decode(), error.headers
+
+
+def post_upload(port: int, path: str, filename: str, media_type: str, contents: bytes):
+    boundary = "cyberlab-test-boundary"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {media_type}\r\n\r\n"
+    ).encode() + contents + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read().decode(), response.headers
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode(), error.headers
+
+
+def forge_session_role(token: str, role: str, *, unsigned: bool) -> str:
+    header_part, payload_part, signature = token.split(".")
+    header = json.loads(base64.urlsafe_b64decode(
+        header_part + "=" * (-len(header_part) % 4),
+    ))
+    claims = json.loads(base64.urlsafe_b64decode(
+        payload_part + "=" * (-len(payload_part) % 4),
+    ))
+    if unsigned:
+        header["alg"] = "none"
+        signature = ""
+    claims["role"] = role
+    def encode(value):
+        return base64.urlsafe_b64encode(
+            json.dumps(value, separators=(",", ":")).encode(),
+        ).rstrip(b"=").decode()
+
+    return f"{encode(header)}.{encode(claims)}.{signature}"
 
 
 class TempHome(unittest.TestCase):
@@ -136,6 +186,133 @@ class TestWebapp(TempHome):
         self.assertNotIn(self.ws.flag("web-idor"), body)
         self.assertIn("object", body.lower())
 
+    def test_unsigned_session_role_can_be_forged_but_secure_route_rejects_it(self):
+        status, _, headers = get_path_with_headers(self.port, "/session")
+        self.assertEqual(status, 200)
+        cookie = SimpleCookie(headers["Set-Cookie"])
+        self.assertTrue(cookie["nw_auth"]["httponly"])
+        original = cookie["nw_auth"].value
+        forged = forge_session_role(original, "admin", unsigned=True)
+
+        status, body, _ = get_path_with_headers(
+            self.port, "/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-session"), body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("JWT payload", body)
+
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+        self.assertIn("signature", body.lower())
+
+    def test_signed_session_rejects_changed_claim_and_expired_tokens(self):
+        status, _, headers = get_path_with_headers(self.port, "/secure/session")
+        self.assertEqual(status, 200)
+        cookie = SimpleCookie(headers["Set-Cookie"])
+        token = cookie["nw_auth"].value
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + token},
+        )
+        self.assertEqual(status, 200)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+        tampered = forge_session_role(token, "admin", unsigned=False)
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + tampered},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+        expired = create_session_token(
+            "staff", self.ws, signed=True, expires_at=int(time.time()) - 1,
+        )
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + expired},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+    def test_invalid_session_cookie_is_rejected_without_server_error(self):
+        for path in ("/session", "/secure/session"):
+            with self.subTest(path=path):
+                status, body, _ = get_path_with_headers(
+                    self.port, path, {"Cookie": "nw_auth=not-a-jwt"},
+                )
+                self.assertEqual(status, 401)
+                self.assertNotIn("Traceback", body)
+
+    def test_double_extension_upload_is_public_inline_but_safe_route_rejects_it(self):
+        contents = b"<!doctype html><p>Synthetic upload only</p>"
+        status, body, headers = post_upload(
+            self.port, "/upload", "avatar.jpg.html", "image/jpeg", contents,
+        )
+        self.assertEqual(status, 201)
+        self.assertIn(self.ws.flag("web-upload"), body)
+        self.assertRegex(headers["Location"], r"^/uploads/[0-9a-f]{32}$")
+        upload_path = headers["Location"]
+        status, served, headers = get_path_with_headers(self.port, upload_path)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/html")
+        self.assertIn("Synthetic upload only", served)
+
+        status, body, _ = post_upload(
+            self.port, "/secure/upload", "avatar.jpg.html", "image/jpeg", contents,
+        )
+        self.assertEqual(status, 415)
+        self.assertNotIn(self.ws.flag("web-upload"), body)
+        self.assertIn("extension", body.lower())
+
+    def test_safe_upload_requires_matching_type_and_image_signature(self):
+        valid_png = _PNG_SAMPLE
+        status, body, _ = post_upload(
+            self.port, "/secure/upload", "avatar.png", "image/png", valid_png,
+        )
+        self.assertEqual(status, 201)
+        self.assertIn("outside the public web directory", body)
+        private_files = list((self.home / "web-upload" / "private").iterdir())
+        self.assertEqual(len(private_files), 1)
+        status, _, _ = get_path_with_headers(
+            self.port, "/uploads/" + private_files[0].name,
+        )
+        self.assertEqual(status, 404)
+
+        for filename, media_type, contents in (
+            ("avatar.png", "image/jpeg", valid_png),
+            ("avatar.png", "image/png", b"<!doctype html>"),
+            ("../avatar.png", "image/png", valid_png),
+        ):
+            with self.subTest(filename=filename, media_type=media_type):
+                status, body, _ = post_upload(
+                    self.port, "/secure/upload", filename, media_type, contents,
+                )
+                self.assertEqual(status, 415)
+                self.assertIn("rejected", body.lower())
+
+    def test_upload_rejects_oversize_and_malformed_requests(self):
+        too_big = b"x" * (1_048_577)
+        status, body, _ = post_upload(
+            self.port, "/upload", "large.jpg.html", "image/jpeg", too_big,
+        )
+        self.assertEqual(status, 413)
+        self.assertNotIn(self.ws.flag("web-upload"), body)
+
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/upload",
+            data=b"not multipart",
+            headers={"Content-Type": "text/plain"},
+        )
+        try:
+            urllib.request.urlopen(request, timeout=5)
+        except urllib.error.HTTPError as error:
+            self.assertEqual(error.code, 400)
+            self.assertIn("multipart", error.read().decode().lower())
+        else:
+            self.fail("non-multipart upload was accepted")
+
     def test_sql_injection_logs_in_as_admin(self):
         for payload in INJECTIONS:
             with self.subTest(payload=payload):
@@ -198,6 +375,50 @@ class TestCli(TempHome):
         self.assertEqual(solved.returncode, 0, solved.stdout)
         self.assertIn("AP Cybersecurity alignment", solved.stdout)
         self.assertIn("Mitigate Risk", solved.stdout)
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_session_end_to_end(self):
+        started = self.cyberlab("start", "web-session")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/session", started.stdout).group(1))
+        status, _, headers = get_path_with_headers(port, "/session")
+        self.assertEqual(status, 200)
+        token = SimpleCookie(headers["Set-Cookie"])["nw_auth"].value
+        forged = forge_session_role(token, "admin", unsigned=True)
+
+        status, body, _ = get_path_with_headers(
+            port, "/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 200)
+        flag = re.search(r"FLAG\{[0-9a-f]+\}", body).group(0)
+        solved = self.cyberlab("submit", "web-session", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("signature", solved.stdout.lower())
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_upload_end_to_end(self):
+        started = self.cyberlab("start", "web-upload")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/upload", started.stdout).group(1))
+        workspace = Workspace(self.home)
+        sample = workspace.home / "web-upload" / "avatar.html"
+        status, body, headers = post_upload(
+            port, "/upload", "avatar.jpg.html", "image/jpeg", sample.read_bytes(),
+        )
+        self.assertEqual(status, 201)
+        self.assertIn(workspace.flag("web-upload"), body)
+        status, _, _ = get_path_with_headers(port, headers["Location"])
+        self.assertEqual(status, 200)
+        status, _, _ = post_upload(
+            port, "/secure/upload", "avatar.jpg.html", "image/jpeg", sample.read_bytes(),
+        )
+        self.assertEqual(status, 415)
+
+        solved = self.cyberlab("submit", "web-upload", workspace.flag("web-upload"))
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("extension", solved.stdout.lower())
 
     def test_learn_replays_the_debrief_without_starting_a_target(self):
         result = self.cyberlab("learn", "web-sqli")
