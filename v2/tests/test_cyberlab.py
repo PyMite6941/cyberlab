@@ -581,8 +581,13 @@ def read_pcap(path):
         rec = {"src": src, "dst": dst, "proto": proto,
                "sport": struct.unpack("!H", frame[l4:l4 + 2])[0],
                "dport": struct.unpack("!H", frame[l4 + 2:l4 + 4])[0],
-               "flags": 0, "dns": None, "payload": b""}
-        if proto == pcap.PROTO_UDP and rec["dport"] == 53:
+               "flags": 0, "dns": None, "payload": b"",
+               "icmp_type": None, "icmp_id": None, "icmp_seq": None}
+        if proto == pcap.PROTO_ICMP:
+            rec["icmp_type"] = frame[l4]
+            rec["icmp_id"] = struct.unpack("!H", frame[l4 + 4:l4 + 6])[0]
+            rec["icmp_seq"] = struct.unpack("!H", frame[l4 + 6:l4 + 8])[0]
+        elif proto == pcap.PROTO_UDP and rec["dport"] == 53:
             q, i = [], l4 + 8 + 12  # skip UDP(8) + DNS header(12)
             while frame[i]:
                 n = frame[i]; q.append(frame[i + 1:i + 1 + n].decode()); i += 1 + n
@@ -652,6 +657,49 @@ class TestNetworkChallenges(TempHome):
         self.assertEqual(registered.most_common(1)[0][0], c._domain(ws))
         self.assertTrue(c.check(ws, c._domain(ws).upper() + "."))
         self.assertFalse(c.check(ws, "google.com"))
+
+
+class TestIcmpChallenges(TempHome):
+    """ICMP / smurf challenges: the answer must be present in the capture."""
+
+    def _cap(self, cid):
+        out = REGISTRY[cid].setup(Workspace(self.home))
+        return read_pcap(out.split("Capture:", 1)[1].split("\n", 1)[0].strip())
+
+    def test_icmp_echo_one_reply_from_the_responder(self):
+        c = REGISTRY["net-icmp-echo"]
+        replies = [r for r in self._cap("net-icmp-echo") if r["icmp_type"] == 0]
+        self.assertEqual(len(replies), 1)
+        self.assertEqual(replies[0]["src"], c._responder(Workspace(self.home)))
+        self.assertTrue(c.check(Workspace(self.home), c._responder(Workspace(self.home))))
+        self.assertFalse(c.check(Workspace(self.home), "198.51.100.99"))
+
+    def test_smurf_victim_receives_all_the_replies(self):
+        from collections import Counter
+        c = REGISTRY["net-smurf-victim"]
+        victim = c._victim(Workspace(self.home))
+        recs = self._cap("net-smurf-victim")
+        reply_dsts = Counter(r["dst"] for r in recs if r["icmp_type"] == 0)
+        self.assertEqual(reply_dsts.most_common(1)[0][0], victim)
+        # the victim is forged as the source of the broadcast requests, and never replies
+        self.assertTrue(any(r["icmp_type"] == 8 and r["src"] == victim
+                            and r["dst"].endswith(".255") for r in recs))
+        self.assertNotIn(victim, [r["src"] for r in recs if r["icmp_type"] == 0])
+        self.assertTrue(c.check(Workspace(self.home), victim))
+        self.assertFalse(c.check(Workspace(self.home), "192.0.2.1"))
+
+    def test_smurf_amp_distinct_reflector_count(self):
+        c = REGISTRY["net-smurf-amp"]
+        _, victim, reflectors = c._reflectors(Workspace(self.home))
+        recs = self._cap("net-smurf-amp")
+        reply_srcs = {r["src"] for r in recs if r["icmp_type"] == 0 and r["dst"] == victim}
+        self.assertEqual(reply_srcs, set(reflectors))
+        # replies == reflectors x requests (3)
+        n_replies = sum(1 for r in recs if r["icmp_type"] == 0 and r["dst"] == victim)
+        self.assertEqual(n_replies, len(reflectors) * 3)
+        self.assertTrue(c.check(Workspace(self.home), str(len(reflectors))))
+        self.assertFalse(c.check(Workspace(self.home), str(len(reflectors) + 1)))
+        self.assertFalse(c.check(Workspace(self.home), "lots"))
 
 
 @unittest.skipUnless(Path("/proc/self").exists(), "needs /proc (Linux) to tell processes apart")

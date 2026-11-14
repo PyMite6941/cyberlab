@@ -62,6 +62,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
 | `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
 | `net-nmap` | network | medium | Find forgotten services with nmap |
+| `net-icmp-echo` | network | easy | Read ICMP echo traffic; find the host that replied |
+| `net-smurf-victim` | network | medium | Find the target of a smurf amplification flood |
+| `net-smurf-amp` | network | hard | Count the reflectors amplifying a smurf attack |
 | `dict-john` | passwords | easy | Crack weak local password hashes with John the Ripper |
 | `dict-hydra` | passwords | medium | Audit a local HTTP login with Hydra |
 | `web-log-forensics` | logs | easy | Identify a traversal request and cite its access-log line |
