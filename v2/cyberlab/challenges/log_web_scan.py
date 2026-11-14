@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import logs
 from cyberlab.challenges import Challenge, register
@@ -54,6 +56,17 @@ class LogWebScan(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip().rstrip("/").lower() == self._secret_path(ws).rstrip("/").lower()
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        log = shlex.quote(str(ws.home / "log-web-scan" / "access.log"))
+        return [
+            ("Find the scanner: the busiest client (curl user agent)",
+             f"grep curl {log} | awk '{{print $1}}' | sort | uniq -c | sort -rn | head"),
+            ("List the scanner's requests and their status codes",
+             f"grep curl {log} | awk '{{print $9, $7}}'"),
+            ("Show the one request that returned 200 — the path it found",
+             f"awk '$9==200' {log} | grep curl"),
+        ]
+
 
 register(LogWebScan(
     id="log-web-scan",
@@ -71,4 +84,18 @@ register(LogWebScan(
         "(e.g. /backup-abc123/).",
     ],
     tools=["grep", "awk"],
+    learned=("You picked one noisy client out of an access log, filtered its requests by "
+             "HTTP status, and found the single path that returned 200 among a flood of "
+             "404s — the hidden resource the scan actually uncovered."),
+    real_world=("Web servers are constantly scanned for known paths. The access log shows "
+                "what was probed and, by status code, what exists: a 200 amid 404s from a "
+                "scanning client flags a resource that should probably not be reachable."),
+    defend=[
+        "Remove or lock down sensitive paths (backups, .git, admin) rather than hiding them.",
+        "Alert on bursts of 404s from one client and on 200s to unlinked paths.",
+        "Put authentication and a WAF in front of admin and backup locations.",
+    ],
+    ap_unit="Unit 5",
+    ap_topic="5.6 Detecting Attacks on Data and Applications",
+    ap_skill=["Detect Attacks", "Analyze Evidence"],
 ))

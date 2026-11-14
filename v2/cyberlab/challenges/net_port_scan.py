@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap
 from cyberlab.challenges import Challenge, register
@@ -44,6 +46,19 @@ class NetPortScan(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip() == self._scanner_ip(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-port-scan" / "capture.pcap"))
+        syn_filter = "'tcp.flags.syn==1 && tcp.flags.ack==0'"
+        return [
+            ("Open the capture in Wireshark",
+             f"wireshark {capture}"),
+            ("List SYN-only connection attempts with source and destination port",
+             f"tshark -r {capture} -Y {syn_filter} -T fields -e ip.src -e tcp.dstport"),
+            ("Count scan attempts by source address",
+             f"tshark -r {capture} -Y {syn_filter} -T fields -e ip.src "
+             "| sort | uniq -c | sort -rn"),
+        ]
+
 
 register(NetPortScan(
     id="net-port-scan",
@@ -59,4 +74,21 @@ register(NetPortScan(
         "tshark -r capture.pcap -Y 'tcp.flags.syn==1 && tcp.flags.ack==0' -T fields -e ip.src | sort | uniq -c | sort -rn",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You identified a host sending many TCP SYN packets to different ports in "
+             "a short time. A SYN is the first step of a TCP connection; repeated attempts "
+             "across ports are a common way to discover exposed services."),
+    real_world=("Service discovery is useful to defenders maintaining an inventory, and "
+                "to attackers mapping what a host exposes. Scans are not proof of compromise "
+                "by themselves: authorized monitoring and ordinary software can also create "
+                "bursts, so defenders correlate source, timing and follow-on activity."),
+    defend=[
+        "Keep an approved inventory of exposed services and close ports that are not needed.",
+        "Alert on unusual connection attempts across many destination ports.",
+        "Use firewall rules and network segmentation to limit reachability.",
+        "Investigate scans alongside authentication, application and endpoint logs instead of "
+        "treating every scan as a successful intrusion.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks; 3.5 Detecting Network Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

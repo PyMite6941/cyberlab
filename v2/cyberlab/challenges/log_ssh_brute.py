@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import logs
 from cyberlab.challenges import Challenge, register
@@ -47,6 +49,15 @@ class LogSshBrute(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip() == self._attacker_ip(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        log = shlex.quote(str(ws.home / "log-ssh-brute" / "auth.log"))
+        return [
+            ("Pull out the failed SSH logins", f"grep 'Failed password' {log}"),
+            ("Rank failed attempts by source IP",
+             f"grep 'Failed password' {log} | grep -oE 'from [0-9.]+' | sort | uniq -c | sort -rn"),
+            ("Confirm that source eventually got in", f"grep 'Accepted password' {log}"),
+        ]
+
 
 register(LogSshBrute(
     id="log-ssh-brute",
@@ -61,4 +72,19 @@ register(LogSshBrute(
         "grep 'Failed password' auth.log | grep -oE 'from [0-9.]+' | sort | uniq -c | sort -rn | head",
     ],
     tools=["grep", "awk", "sort"],
+    learned=("You separated failed from successful SSH logins and ranked failures by "
+             "source address to find one host that guessed passwords repeatedly and then "
+             "succeeded — the signature of a brute-force attack in auth.log."),
+    real_world=("Exposed SSH is a constant target for password guessing. Auth logs are the "
+                "primary evidence; a spike of failures from one source followed by an accept "
+                "is strong, but not conclusive on its own — correlate with the account, time "
+                "and later activity before calling it a compromise."),
+    defend=[
+        "Disable password auth in favour of keys, and never expose SSH broadly.",
+        "Rate-limit and lock out repeated failures (fail2ban) and alert on failure spikes.",
+        "Review a success that follows many failures from the same source as a likely breach.",
+    ],
+    ap_unit="Unit 5",
+    ap_topic="5.6 Detecting Attacks on Data and Applications",
+    ap_skill=["Detect Attacks", "Analyze Risk"],
 ))

@@ -8,6 +8,7 @@ on:
     paths:
       - "v2/cyberlab/**"
       - "v2/tests/**"
+      - "tests/smoke_cyberlab.py"
       - "v2/bin/**"
       - "cyberlab.bat"
       - "cyberlab.sh"
@@ -35,6 +36,8 @@ jobs:
       - name: Unit and end-to-end tests
         working-directory: v2
         run: python3 -m unittest discover -s tests -v
+      - name: Supported root CLI smoke test
+        run: python3 tests/smoke_cyberlab.py
       - name: The launcher works from anywhere
         env:
           CYBERLAB_HOME: ${{ runner.temp }}/cyberlab

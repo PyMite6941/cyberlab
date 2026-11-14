@@ -32,6 +32,7 @@ cyberlab list                      # challenges and your progress
 cyberlab start web-sqli            # starts the target and shows the goal
 cyberlab hint web-sqli             # one more hint each time
 cyberlab submit web-sqli FLAG{...} # check your answer
+cyberlab learn web-sqli             # review the lesson, commands and defenses
 cyberlab stop                      # stop every running target
 cyberlab report --name "Your Name" -o ~/Desktop/report.txt   # progress to hand in
 cyberlab reset                     # delete your workspace and progress
@@ -39,6 +40,10 @@ cyberlab reset                     # delete your workspace and progress
 
 Example: `cyberlab start web-sqli` prints a URL like `http://127.0.0.1:8080/login`.
 Open it in Firefox, or use curl or sqlmap, find the flag, and submit it.
+After a correct answer, cyberlab explains what happened, why it matters in
+practice, gives lab-scoped commands to try, and lists defenses. Run
+`cyberlab learn <id>` any time to review that debrief. Start the challenge
+first if its target or workspace files are not currently available.
 
 Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 (set `CYBERLAB_HOME` to use another folder).
@@ -48,16 +53,43 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | ID | Track | Level | What you do |
 |----|-------|-------|-------------|
 | `web-sqli` | web | easy | SQL injection: log in as admin without the password |
+| `web-xss` | web | easy | Run JavaScript through a reflected search term |
+| `web-idor` | web | easy | Access a record without an object-level permission check |
+| `web-session` | web | easy | Forge an unsigned JWT role claim; compare signature verification |
+| `web-upload` | web | medium | Bypass a double-extension upload check; compare private storage and validation |
+| `web-gobuster` | web | medium | Find a forgotten directory and its exposed backup |
 | `net-http-creds` | network | easy | Recover a password sent in cleartext HTTP |
 | `net-port-scan` | network | medium | Find the host port-scanning the server |
 | `net-dns-tunnel` | network | hard | Spot the domain tunneling data over DNS |
+| `net-nmap` | network | medium | Find forgotten services with nmap |
+| `dict-john` | passwords | easy | Crack weak local password hashes with John the Ripper |
+| `dict-hydra` | passwords | medium | Audit a local HTTP login with Hydra |
+| `web-log-forensics` | logs | easy | Identify a traversal request and cite its access-log line |
 | `log-ssh-brute` | logs | easy | Find the IP that brute-forced SSH in auth.log |
 | `log-web-scan` | logs | medium | Find the hidden path a web scan uncovered |
 | `log-sudo-esc` | logs | hard | Find the user who escalated to root via sudo |
-| `dict-john` | logs | easy | Crack a weak local password hash with John the Ripper |
-| `dict-hydra` | logs | medium | Audit a local HTTP login with Hydra |
 
 More are coming: see [DESIGN.md](DESIGN.md).
+
+### AP Cybersecurity alignment
+
+| Challenge | Unit/topic | Skills practiced |
+|-----------|------------|------------------|
+| `dict-hydra` | Units 1, 4; 4.2 Authentication | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `dict-john` | Units 4–5; 4.2 Authentication, 5.2 Access Controls | Analyze Risk, Mitigate Risk |
+| `net-http-creds` | Unit 3; 3.1 Network Vulnerabilities and Attacks | Analyze Risk, Detect Attacks |
+| `net-nmap` | Unit 3; 3.1, 3.3 Segmentation, 3.4 Firewalls | Analyze Risk, Detect Attacks |
+| `net-port-scan` | Unit 3; 3.1, 3.5 Detecting Network Attacks | Analyze Risk, Detect Attacks |
+| `net-dns-tunnel` | Unit 3; 3.5 Detecting Network Attacks | Detect Attacks |
+| `web-sqli` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-xss` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-idor` | Unit 5; 5.2 Managerial Controls and Access Controls | Analyze Risk, Mitigate Risk |
+| `web-session` | Unit 4; 4.2 Authentication | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-upload` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Mitigate Risk, Detect Attacks |
+| `web-gobuster` | Unit 5; 5.1 Application and Data Vulnerabilities and Attacks | Analyze Risk, Detect Attacks |
+| `web-log-forensics` | Unit 5; 5.6 Detecting Attacks on Data and Applications | Detect Attacks, Analyze Risk, Mitigate Risk |
+
+`cyberlab learn <id>` shows the challenge's alignment alongside its debrief.
 
 ## For the teacher
 

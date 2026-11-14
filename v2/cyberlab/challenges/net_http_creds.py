@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import pcap
 from cyberlab.challenges import Challenge, register
@@ -42,6 +44,17 @@ class NetHttpCreds(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip() == self._password(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        capture = shlex.quote(str(ws.home / "net-http-creds" / "capture.pcap"))
+        return [
+            ("Open the capture in Wireshark",
+             f"wireshark {capture}"),
+            ("Show the POST packet's hex and ASCII bytes with tshark",
+             f"tshark -r {capture} -Y 'http.request.method==POST' -x"),
+            ("Find readable login data in the capture file",
+             f"strings {capture} | grep -E 'POST /login|username=alice'"),
+        ]
+
 
 register(NetHttpCreds(
     id="net-http-creds",
@@ -56,4 +69,20 @@ register(NetHttpCreds(
         "With tshark:  tshark -r capture.pcap -Y 'http.request.method==POST' -T fields -e http.file_data",
     ],
     tools=["Wireshark", "tshark"],
+    learned=("You recovered a password because HTTP sent the login form as readable "
+             "text. A packet capture records those bytes exactly; anyone able to observe "
+             "the network path could read the credentials."),
+    real_world=("Passwords and session tokens sent over unencrypted Wi-Fi or shared "
+                "networks can be captured without breaking into the server. HTTPS protects "
+                "the contents in transit, but a capture can still reveal metadata such as "
+                "destination addresses and timing."),
+    defend=[
+        "Use HTTPS for every page and form, and redirect HTTP to HTTPS.",
+        "Enable HSTS so browsers remember to use HTTPS for the site.",
+        "Never send passwords, tokens or other secrets in URLs or unencrypted protocols.",
+        "Treat packet captures as sensitive: restrict access and delete them when no longer needed.",
+    ],
+    ap_unit="Unit 3",
+    ap_topic="3.1 Network Vulnerabilities and Attacks",
+    ap_skill=["Analyze Risk", "Detect Attacks"],
 ))

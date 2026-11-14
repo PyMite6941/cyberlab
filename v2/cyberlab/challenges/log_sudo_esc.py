@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shlex
+from typing import List, Tuple
 
 from cyberlab import logs
 from cyberlab.challenges import Challenge, register
@@ -45,6 +47,16 @@ class LogSudoEsc(Challenge):
     def check(self, ws: Workspace, answer: str) -> bool:
         return answer.strip().lower() == self._culprit(ws)
 
+    def snippets(self, ws: Workspace) -> List[Tuple[str, str]]:
+        log = shlex.quote(str(ws.home / "log-sudo-esc" / "auth.log"))
+        return [
+            ("List who ran sudo", f"grep 'sudo:' {log} | awk '{{print $5}}' | sort | uniq -c"),
+            ("The giveaway: a sudo command that opens a root shell",
+             f"grep 'COMMAND=/bin/bash' {log}"),
+            ("Or: a root session opened by a non-admin",
+             f"grep 'session opened for user root' {log}"),
+        ]
+
 
 register(LogSudoEsc(
     id="log-sudo-esc",
@@ -60,4 +72,19 @@ register(LogSudoEsc(
         "or 'session opened for user root by <user>'.",
     ],
     tools=["grep", "awk", "sort"],
+    learned=("You listed every user who ran sudo, set aside the known admins, and found a "
+             "non-admin who opened a root shell — privilege escalation recorded plainly in "
+             "auth.log."),
+    real_world=("sudo is logged, which makes those logs a key source for catching misuse. A "
+                "normal user spawning a root shell is a strong escalation signal, though "
+                "legitimate break-glass access exists — confirm the user was authorised "
+                "before treating it as an incident."),
+    defend=[
+        "Grant sudo narrowly (specific commands), not broad or shell access.",
+        "Alert on sudo to interactive shells and on new users gaining root.",
+        "Ship auth logs off-host so an attacker who escalates cannot erase them.",
+    ],
+    ap_unit="Unit 5",
+    ap_topic="5.6 Detecting Attacks on Data and Applications",
+    ap_skill=["Detect Attacks", "Analyze Risk"],
 ))

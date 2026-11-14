@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import getpass
+import base64
 import json
 import os
 import re
@@ -21,6 +22,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from http.cookies import SimpleCookie
 from pathlib import Path
 from unittest import mock
 
@@ -30,7 +32,8 @@ sys.path.insert(0, str(V2))
 
 from cyberlab import report, targets  # noqa: E402
 from cyberlab.challenges import REGISTRY  # noqa: E402
-from cyberlab.webapp import make_server  # noqa: E402
+from cyberlab.challenges.web_upload import _PNG_SAMPLE  # noqa: E402
+from cyberlab.webapp import create_session_token, make_server  # noqa: E402
 from cyberlab.workspace import Workspace  # noqa: E402
 
 INJECTIONS = ["admin' --", "' OR 1=1 --", "' OR '1'='1' --"]
@@ -52,6 +55,61 @@ def accepting(port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def get_path(port: int, path: str):
+    status, body, _ = get_path_with_headers(port, path)
+    return status, body
+
+
+def get_path_with_headers(port: int, path: str, headers=None):
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}", headers=headers or {},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read().decode(), response.headers
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode(), error.headers
+
+
+def post_upload(port: int, path: str, filename: str, media_type: str, contents: bytes):
+    boundary = "cyberlab-test-boundary"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {media_type}\r\n\r\n"
+    ).encode() + contents + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read().decode(), response.headers
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode(), error.headers
+
+
+def forge_session_role(token: str, role: str, *, unsigned: bool) -> str:
+    header_part, payload_part, signature = token.split(".")
+    header = json.loads(base64.urlsafe_b64decode(
+        header_part + "=" * (-len(header_part) % 4),
+    ))
+    claims = json.loads(base64.urlsafe_b64decode(
+        payload_part + "=" * (-len(payload_part) % 4),
+    ))
+    if unsigned:
+        header["alg"] = "none"
+        signature = ""
+    claims["role"] = role
+    def encode(value):
+        return base64.urlsafe_b64encode(
+            json.dumps(value, separators=(",", ":")).encode(),
+        ).rstrip(b"=").decode()
+
+    return f"{encode(header)}.{encode(claims)}.{signature}"
 
 
 class TempHome(unittest.TestCase):
@@ -108,12 +166,161 @@ class TestWebapp(TempHome):
         self.assertIn("Welcome back, alice", body)
         self.assertNotIn("FLAG{", body)
 
+    def test_reflected_xss_page_explains_impact_and_defenses(self):
+        query = urllib.parse.urlencode({"q": "<script>alert(1)</script>"})
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{self.port}/search?{query}", timeout=5) as response:
+            body = response.read().decode()
+        self.assertIn(self.ws.flag("web-xss"), body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
+
+    def test_idor_returns_another_record_only_on_the_vulnerable_route(self):
+        status, body = get_path(self.port, "/account?id=100")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-idor"), body)
+        self.assertIn("AP Cybersecurity alignment", body)
+
+        status, body = get_path(self.port, "/secure/account?id=100")
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.ws.flag("web-idor"), body)
+        self.assertIn("object", body.lower())
+
+    def test_unsigned_session_role_can_be_forged_but_secure_route_rejects_it(self):
+        status, _, headers = get_path_with_headers(self.port, "/session")
+        self.assertEqual(status, 200)
+        cookie = SimpleCookie(headers["Set-Cookie"])
+        self.assertTrue(cookie["nw_auth"]["httponly"])
+        original = cookie["nw_auth"].value
+        forged = forge_session_role(original, "admin", unsigned=True)
+
+        status, body, _ = get_path_with_headers(
+            self.port, "/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-session"), body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("JWT payload", body)
+
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+        self.assertIn("signature", body.lower())
+
+    def test_signed_session_rejects_changed_claim_and_expired_tokens(self):
+        status, _, headers = get_path_with_headers(self.port, "/secure/session")
+        self.assertEqual(status, 200)
+        cookie = SimpleCookie(headers["Set-Cookie"])
+        token = cookie["nw_auth"].value
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + token},
+        )
+        self.assertEqual(status, 200)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+        tampered = forge_session_role(token, "admin", unsigned=False)
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + tampered},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+        expired = create_session_token(
+            "staff", self.ws, signed=True, expires_at=int(time.time()) - 1,
+        )
+        status, body, _ = get_path_with_headers(
+            self.port, "/secure/session", {"Cookie": "nw_auth=" + expired},
+        )
+        self.assertEqual(status, 401)
+        self.assertNotIn(self.ws.flag("web-session"), body)
+
+    def test_invalid_session_cookie_is_rejected_without_server_error(self):
+        for path in ("/session", "/secure/session"):
+            with self.subTest(path=path):
+                status, body, _ = get_path_with_headers(
+                    self.port, path, {"Cookie": "nw_auth=not-a-jwt"},
+                )
+                self.assertEqual(status, 401)
+                self.assertNotIn("Traceback", body)
+
+    def test_double_extension_upload_is_public_inline_but_safe_route_rejects_it(self):
+        contents = b"<!doctype html><p>Synthetic upload only</p>"
+        status, body, headers = post_upload(
+            self.port, "/upload", "avatar.jpg.html", "image/jpeg", contents,
+        )
+        self.assertEqual(status, 201)
+        self.assertIn(self.ws.flag("web-upload"), body)
+        self.assertRegex(headers["Location"], r"^/uploads/[0-9a-f]{32}$")
+        upload_path = headers["Location"]
+        status, served, headers = get_path_with_headers(self.port, upload_path)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/html")
+        self.assertIn("Synthetic upload only", served)
+
+        status, body, _ = post_upload(
+            self.port, "/secure/upload", "avatar.jpg.html", "image/jpeg", contents,
+        )
+        self.assertEqual(status, 415)
+        self.assertNotIn(self.ws.flag("web-upload"), body)
+        self.assertIn("extension", body.lower())
+
+    def test_safe_upload_requires_matching_type_and_image_signature(self):
+        valid_png = _PNG_SAMPLE
+        status, body, _ = post_upload(
+            self.port, "/secure/upload", "avatar.png", "image/png", valid_png,
+        )
+        self.assertEqual(status, 201)
+        self.assertIn("outside the public web directory", body)
+        private_files = list((self.home / "web-upload" / "private").iterdir())
+        self.assertEqual(len(private_files), 1)
+        status, _, _ = get_path_with_headers(
+            self.port, "/uploads/" + private_files[0].name,
+        )
+        self.assertEqual(status, 404)
+
+        for filename, media_type, contents in (
+            ("avatar.png", "image/jpeg", valid_png),
+            ("avatar.png", "image/png", b"<!doctype html>"),
+            ("../avatar.png", "image/png", valid_png),
+        ):
+            with self.subTest(filename=filename, media_type=media_type):
+                status, body, _ = post_upload(
+                    self.port, "/secure/upload", filename, media_type, contents,
+                )
+                self.assertEqual(status, 415)
+                self.assertIn("rejected", body.lower())
+
+    def test_upload_rejects_oversize_and_malformed_requests(self):
+        too_big = b"x" * (1_048_577)
+        status, body, _ = post_upload(
+            self.port, "/upload", "large.jpg.html", "image/jpeg", too_big,
+        )
+        self.assertEqual(status, 413)
+        self.assertNotIn(self.ws.flag("web-upload"), body)
+
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/upload",
+            data=b"not multipart",
+            headers={"Content-Type": "text/plain"},
+        )
+        try:
+            urllib.request.urlopen(request, timeout=5)
+        except urllib.error.HTTPError as error:
+            self.assertEqual(error.code, 400)
+            self.assertIn("multipart", error.read().decode().lower())
+        else:
+            self.fail("non-multipart upload was accepted")
+
     def test_sql_injection_logs_in_as_admin(self):
         for payload in INJECTIONS:
             with self.subTest(payload=payload):
                 status, body = post_login(self.port, payload)
                 self.assertEqual(status, 200)
                 self.assertIn(self.ws.flag("web-sqli"), body)
+                self.assertIn("Why it matters in practice", body)
+                self.assertIn("How to defend", body)
 
     def test_quote_shows_a_database_error(self):
         status, body = post_login(self.port, "'")
@@ -150,11 +357,95 @@ class TestCli(TempHome):
         right = self.cyberlab("submit", "web-sqli", flag)
         self.assertEqual(right.returncode, 0, right.stdout)
         self.assertIn("Correct", right.stdout)
+        self.assertIn("Why it matters in practice", right.stdout)
+        self.assertIn("How to defend", right.stdout)
+        self.assertIn("parameterized queries", right.stdout.lower())
         self.assertIn("[x] web-sqli", self.cyberlab("list").stdout)
 
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_idor_end_to_end(self):
+        started = self.cyberlab("start", "web-idor")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/account", started.stdout).group(1))
+        status, body = get_path(port, "/account?id=100")
+        self.assertEqual(status, 200)
+        flag = re.search(r"FLAG\{[0-9a-f]+\}", body).group(0)
+
+        solved = self.cyberlab("submit", "web-idor", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Mitigate Risk", solved.stdout)
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_session_end_to_end(self):
+        started = self.cyberlab("start", "web-session")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/session", started.stdout).group(1))
+        status, _, headers = get_path_with_headers(port, "/session")
+        self.assertEqual(status, 200)
+        token = SimpleCookie(headers["Set-Cookie"])["nw_auth"].value
+        forged = forge_session_role(token, "admin", unsigned=True)
+
+        status, body, _ = get_path_with_headers(
+            port, "/session", {"Cookie": "nw_auth=" + forged},
+        )
+        self.assertEqual(status, 200)
+        flag = re.search(r"FLAG\{[0-9a-f]+\}", body).group(0)
+        solved = self.cyberlab("submit", "web-session", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("signature", solved.stdout.lower())
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
+    def test_solve_web_upload_end_to_end(self):
+        started = self.cyberlab("start", "web-upload")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        port = int(re.search(r"http://127\.0\.0\.1:(\d+)/upload", started.stdout).group(1))
+        workspace = Workspace(self.home)
+        sample = workspace.home / "web-upload" / "avatar.html"
+        status, body, headers = post_upload(
+            port, "/upload", "avatar.jpg.html", "image/jpeg", sample.read_bytes(),
+        )
+        self.assertEqual(status, 201)
+        self.assertIn(workspace.flag("web-upload"), body)
+        status, _, _ = get_path_with_headers(port, headers["Location"])
+        self.assertEqual(status, 200)
+        status, _, _ = post_upload(
+            port, "/secure/upload", "avatar.jpg.html", "image/jpeg", sample.read_bytes(),
+        )
+        self.assertEqual(status, 415)
+
+        solved = self.cyberlab("submit", "web-upload", workspace.flag("web-upload"))
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("extension", solved.stdout.lower())
+
+    def test_learn_replays_the_debrief_without_starting_a_target(self):
+        result = self.cyberlab("learn", "web-sqli")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("What you learned", result.stdout)
+        self.assertIn("Why it matters in practice", result.stdout)
+        self.assertIn("Try these commands", result.stdout)
+        self.assertIn("How to defend", result.stdout)
+        self.assertFalse(Workspace(self.home).state["targets"])
+
+    def test_log_forensics_challenge_accepts_evidence_and_shows_ap_alignment(self):
+        started = self.cyberlab("start", "web-log-forensics")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.assertIn("access.log", started.stdout)
+
+        challenge = REGISTRY["web-log-forensics"]
+        answer = challenge._answer(Workspace(self.home))
+        solved = self.cyberlab("submit", "web-log-forensics", answer)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("AP Cybersecurity alignment", solved.stdout)
+        self.assertIn("Detect Attacks", solved.stdout)
+
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
     def test_start_twice_reuses_the_running_target(self):
         self.assertEqual(self.start(), self.start())
 
+    @unittest.skipUnless(os.name == "posix", "target process lifecycle is Linux-only")
     def test_stop_stops_the_target(self):
         port = self.start()
         r = self.cyberlab("stop")
@@ -234,6 +525,34 @@ class TestReport(TempHome):
         self.assertEqual(json.loads(out.read_text())["student"], "Alex P")
 
         self.assertIn("--name", run().stderr)  # no name given: says how to set one
+
+
+class TestChallengeDebriefs(TempHome):
+    def test_every_challenge_has_a_practical_debrief_and_commands(self):
+        ws = Workspace(self.home)
+        for challenge in REGISTRY.values():
+            with self.subTest(challenge=challenge.id):
+                self.assertTrue(challenge.learned.strip())
+                self.assertTrue(challenge.real_world.strip())
+                self.assertTrue(challenge.defend)
+                self.assertTrue(challenge.snippets(ws))
+                self.assertTrue(challenge.ap_unit)
+                self.assertTrue(challenge.ap_topic)
+                self.assertTrue(challenge.ap_skill)
+
+    def test_web_log_answer_requires_the_correct_ip_and_evidence_line(self):
+        challenge = REGISTRY["web-log-forensics"]
+        ws = Workspace(self.home)
+        details = challenge.setup(ws)
+        self.assertIn("line number", details)
+        answer = challenge._answer(ws)
+        self.assertTrue(challenge.check(ws, answer))
+        ip, line = answer.split(":")
+        self.assertTrue(challenge.check(ws, f"{ip} line {line}"))
+        self.assertFalse(challenge.check(ws, f"{ip}:6"))
+        self.assertFalse(challenge.check(ws, "192.0.2.1:7"))
+        log_path = self.home / "web-log-forensics" / "access.log"
+        self.assertIn("..%2f..%2fetc%2fpasswd", log_path.read_text(encoding="utf-8").splitlines()[6])
 
 
 import struct  # noqa: E402
@@ -381,7 +700,13 @@ class TestLogChallenges(TempHome):
 class TestStopIsSafe(TempHome):
     def test_stop_never_kills_an_unrelated_process(self):
         sleeper = subprocess.Popen(["sleep", "30"])
-        self.addCleanup(sleeper.kill)
+
+        def stop_sleeper():
+            if sleeper.poll() is None:
+                sleeper.kill()
+            sleeper.wait()
+
+        self.addCleanup(stop_sleeper)
         ws = Workspace(self.home)
         ws.state["targets"]["webapp"] = {"pid": sleeper.pid, "port": 1}  # e.g. a reused pid
         ws.save()
@@ -411,9 +736,13 @@ class TestDictJohn(TempHome):
         pw = c._password(ws)
         self.assertIn(pw, words)
 
-        # The hash is the MD5 of the password.
-        line = Path(hash_path).read_text().strip()
-        self.assertEqual(line, f"admin:{__import__('hashlib').md5(pw.encode()).hexdigest()}")
+        # Every account is represented, and its hash matches one word in the list.
+        hashes = dict(line.split(":", 1) for line in Path(hash_path).read_text().splitlines())
+        self.assertEqual(set(hashes), {"admin", "alice", "bob"})
+        self.assertEqual(hashes["admin"], c._hash(ws))
+        for user in hashes:
+            self.assertIn(c._user_password(ws, user), words)
+            self.assertEqual(hashes[user], c._hash(ws, user))
 
     def test_setup_quotes_paths_in_commands(self):
         ws = Workspace(self.home / "student files")
@@ -425,7 +754,7 @@ class TestDictJohn(TempHome):
 
         self.assertEqual(commands[0][2], f"--wordlist={word_path}")
         self.assertEqual(commands[0][3], hash_path)
-        self.assertEqual(commands[1], ["john", "--show", hash_path])
+        self.assertEqual(commands[1], ["john", "--show", "--format=raw-md5", hash_path])
 
     def test_check_accepts_correct_and_rejects_wrong(self):
         ws = Workspace(self.home)
@@ -469,6 +798,8 @@ class TestHttpAuth(TempHome):
         self.assertEqual(status, 200)
         self.assertIn(self.ws.flag("dict-hydra"), body)
         self.assertIn("Welcome back, admin", body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
 
 
 class TestDictHydra(TempHome):
@@ -508,6 +839,101 @@ class TestDictHydra(TempHome):
         self.assertTrue(c.check(ws, pw))
         self.assertTrue(c.check(ws, "  " + pw + "\n"))
         self.assertFalse(c.check(ws, "wrongpassword"))
+        self.assertFalse(c.check(ws, ""))
+
+
+class TestWebDirs(TempHome):
+    """Logic tests for the webdirs target (separate from webapp and httpauth)."""
+
+    def setUp(self):
+        super().setUp()
+        import cyberlab.webdirs as _wd
+
+        self.ws = Workspace(self.home)
+        self.server = _wd.make_server(0, self.ws)
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def test_listens_on_loopback_only(self):
+        self.assertEqual(self.server.server_address[0], "127.0.0.1")
+
+    def test_public_pages_return_200(self):
+        for path in ("/", "/about"):
+            status, body = self._get(path)
+            self.assertEqual(status, 200, path)
+
+    def test_admin_is_forbidden(self):
+        status, body = self._get("/admin")
+        self.assertEqual(status, 403)
+        self.assertNotIn(self.ws.flag("web-gobuster"), body)
+
+    def test_unlinked_directory_exposes_backup_not_flag_on_listing(self):
+        from cyberlab import wordlists
+
+        leftover = wordlists.hidden_directory(self.ws)
+        status, body = self._get("/" + leftover)
+        self.assertEqual(status, 200)
+        self.assertIn("db-backup.sql", body)
+        self.assertIn("Why it matters in practice", body)
+        self.assertIn("How to defend", body)
+        self.assertNotIn(self.ws.flag("web-gobuster"), body)
+
+        status, body = self._get("/" + leftover + "/db-backup.sql")
+        self.assertEqual(status, 200)
+        self.assertIn(self.ws.flag("web-gobuster"), body)
+
+    def test_unknown_path_is_404(self):
+        status, _ = self._get("/no-such-dir")
+        self.assertEqual(status, 404)
+
+    def _get(self, path):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}", timeout=5) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+
+class TestWebGobuster(TempHome):
+    """Logic tests for the gobuster directory-enumeration challenge."""
+
+    def test_setup_writes_wordlist_with_hidden_dir(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["web-gobuster"]
+        with mock.patch("cyberlab.challenges.web_gobuster.targets.start", return_value=8092):
+            details = c.setup(ws)
+        wl_line = [l for l in details.splitlines() if l.startswith("Wordlist:")][0]
+        wl_path = wl_line.split("Wordlist:", 1)[1].strip()
+        self.assertTrue(Path(wl_path).exists(), wl_path)
+        words = Path(wl_path).read_text().split()
+        self.assertIn("admin", words)
+        self.assertTrue(len(words) > 3, "wordlist should include decoys")
+
+    def test_check_accepts_flag_and_rejects_wrong(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["web-gobuster"]
+        flag = ws.flag("web-gobuster")
+        self.assertTrue(c.check(ws, flag))
+        self.assertTrue(c.check(ws, "  " + flag + "\n"))
+        self.assertFalse(c.check(ws, "FLAG{nope}"))
+        self.assertFalse(c.check(ws, ""))
+
+
+class TestNetNmap(TempHome):
+    """Logic tests for the nmap service-detection challenge."""
+
+    def test_setup_and_check_use_the_started_port(self):
+        ws = Workspace(self.home)
+        c = REGISTRY["net-nmap"]
+        with mock.patch("cyberlab.challenges.net_nmap.targets.start", return_value=9000):
+            details = c.setup(ws)
+        base = 9000
+        self.assertIn(f"{base}-{base + 99}", details)
+        self.assertTrue(c.check(ws, ws.flag("net-nmap")))
+        self.assertTrue(c.check(ws, "  " + ws.flag("net-nmap") + "\n"))
+        self.assertFalse(c.check(ws, "1,2,3"))
         self.assertFalse(c.check(ws, ""))
 
 

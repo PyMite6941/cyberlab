@@ -25,6 +25,8 @@ PACKAGE_PARENT = Path(__file__).resolve().parent.parent  # the v2/ folder
 TARGETS = {
     "webapp": ("cyberlab.webapp", 8080),
     "httpauth": ("cyberlab.httpauth", 8091),
+    "webdirs": ("cyberlab.webdirs", 8092),
+    "netscan": ("cyberlab.netscan", 9000),  # the bottom of a 100-port window
 }
 
 
@@ -80,6 +82,12 @@ def running(ws: Workspace, name: str) -> Optional[int]:
     del ws.state["targets"][name]
     ws.save()
     return None
+
+
+def port_of(ws: Workspace, name: str) -> int:
+    """The port to put in a command for the student: the running target's, or
+    the one it normally gets when it isn't running right now."""
+    return running(ws, name) or TARGETS[name][1]
 
 
 def start(ws: Workspace, name: str) -> int:
