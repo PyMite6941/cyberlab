@@ -654,6 +654,48 @@ class TestNetworkChallenges(TempHome):
         self.assertFalse(c.check(ws, "google.com"))
 
 
+class TestLogChallenges(TempHome):
+    """Each log challenge: the answer must be findable in the generated log,
+    the way a student would grep for it."""
+
+    def _log_path(self, cid):
+        out = REGISTRY[cid].setup(Workspace(self.home))
+        return Path(out.split("Log:", 1)[1].split("\n", 1)[0].strip())
+
+    def test_ssh_brute_ip_is_the_busiest_failed_source(self):
+        from collections import Counter
+        c = REGISTRY["log-ssh-brute"]
+        text = self._log_path("log-ssh-brute").read_text()
+        fails = Counter(re.findall(r"Failed password .*? from ([0-9.]+)", text))
+        self.assertEqual(fails.most_common(1)[0][0], c._attacker_ip(Workspace(self.home)))
+        # and that IP eventually logs in
+        self.assertIn(f"Accepted password for root from {c._attacker_ip(Workspace(self.home))}", text)
+        self.assertTrue(c.check(Workspace(self.home), c._attacker_ip(Workspace(self.home))))
+        self.assertFalse(c.check(Workspace(self.home), "10.0.0.20"))
+
+    def test_web_scan_secret_path_is_the_only_scanner_200(self):
+        c = REGISTRY["log-web-scan"]
+        text = self._log_path("log-web-scan").read_text()
+        hits = re.findall(r'curl.*', text)  # scanner lines use curl UA
+        got200 = [re.search(r'"GET (\S+) HTTP/1.1" 200', ln) for ln in text.splitlines() if "curl" in ln]
+        paths = [m.group(1) for m in got200 if m]
+        self.assertEqual(paths, [c._secret_path(Workspace(self.home))])
+        self.assertTrue(c.check(Workspace(self.home), c._secret_path(Workspace(self.home))))
+        self.assertTrue(c.check(Workspace(self.home), c._secret_path(Workspace(self.home)).rstrip("/")))
+        self.assertFalse(c.check(Workspace(self.home), "/admin"))
+
+    def test_sudo_esc_user_is_the_non_admin_who_got_root(self):
+        c = REGISTRY["log-sudo-esc"]
+        text = self._log_path("log-sudo-esc").read_text()
+        culprit = c._culprit(Workspace(self.home))
+        self.assertRegex(text, rf"sudo: {culprit} : .*COMMAND=/bin/bash")
+        self.assertIn(f"session opened for user root by {culprit}", text)
+        for admin in ("alice", "dsingh"):
+            self.assertNotRegex(text, rf"sudo: {admin} : .*COMMAND=/bin/bash")
+        self.assertTrue(c.check(Workspace(self.home), culprit.upper()))
+        self.assertFalse(c.check(Workspace(self.home), "alice"))
+
+
 @unittest.skipUnless(Path("/proc/self").exists(), "needs /proc (Linux) to tell processes apart")
 class TestStopIsSafe(TempHome):
     def test_stop_never_kills_an_unrelated_process(self):

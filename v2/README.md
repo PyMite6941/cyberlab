@@ -65,6 +65,9 @@ Your progress, the targets' logs and any challenge files live in `~/cyberlab/`
 | `dict-john` | passwords | easy | Crack weak local password hashes with John the Ripper |
 | `dict-hydra` | passwords | medium | Audit a local HTTP login with Hydra |
 | `web-log-forensics` | logs | easy | Identify a traversal request and cite its access-log line |
+| `log-ssh-brute` | logs | easy | Find the IP that brute-forced SSH in auth.log |
+| `log-web-scan` | logs | medium | Find the hidden path a web scan uncovered |
+| `log-sudo-esc` | logs | hard | Find the user who escalated to root via sudo |
 
 More are coming: see [DESIGN.md](DESIGN.md).
 

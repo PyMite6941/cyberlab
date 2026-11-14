@@ -47,8 +47,8 @@ tools-pack/       offline apt bundle of nmap, tshark, sqlmap, hydra ...
    discovery, IDOR, JWT session tampering, and safe upload validation.
 3. **Done:** network track: generated pcaps for Wireshark/tshark (cleartext
    credentials, port scan, DNS tunnel), plus a local service-discovery lab.
-4. **In progress:** synthetic web access-log forensics is implemented; SSH
-   brute force, password spray and privilege-escalation investigations remain.
+4. **Done:** log track: real log files for grep — web access-log forensics,
+   an SSH brute force, a web-scan path discovery, and a sudo privilege escalation.
 5. **Done:** `cyberlab report` for the teacher (text or JSON, `-o FILE`).
 6. **In progress:** challenges expose AP Cybersecurity unit, topic and skill
    metadata for `cyberlab learn` and classroom alignment.
