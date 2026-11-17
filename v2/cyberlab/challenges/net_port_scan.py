@@ -74,6 +74,8 @@ register(NetPortScan(
         "tshark -r capture.pcap -Y 'tcp.flags.syn==1 && tcp.flags.ack==0' -T fields -e ip.src | sort | uniq -c | sort -rn",
     ],
     tools=["Wireshark", "tshark"],
+    vulnerability="Port scanning (network reconnaissance)",
+    wiki="https://en.wikipedia.org/wiki/Port_scanner",
     learned=("You identified a host sending many TCP SYN packets to different ports in "
              "a short time. A SYN is the first step of a TCP connection; repeated attempts "
              "across ports are a common way to discover exposed services."),

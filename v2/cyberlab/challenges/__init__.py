@@ -6,8 +6,9 @@ and (if the answer isn't a flag) check(), and import it at the bottom here.
 
 Every challenge also carries its debrief: what the student just did, why it
 matters outside the lab, the commands worth keeping, and how to defend against
-it. `cyberlab submit` prints it on a correct answer and `cyberlab learn <id>`
-shows it again. A challenge without one fails the tests.
+it. `cyberlab submit` prints it on a correct answer, `cyberlab learn <id>`
+shows it again, and `cyberlab learn` (no id) collects every solved one into
+an HTML page. A challenge without one fails the tests.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ class Challenge:
     hints: List[str] = field(default_factory=list)
     tools: List[str] = field(default_factory=list)  # suggested real tools
     # The debrief (see the module docstring).
+    vulnerability: str = ""                          # the weakness, by its usual name
+    wiki: str = ""                                   # Wikipedia article about it
     learned: str = ""                                # what you just did
     real_world: str = ""                             # why it matters
     defend: List[str] = field(default_factory=list)  # how to prevent or detect it

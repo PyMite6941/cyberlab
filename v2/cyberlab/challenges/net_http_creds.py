@@ -69,6 +69,8 @@ register(NetHttpCreds(
         "With tshark:  tshark -r capture.pcap -Y 'http.request.method==POST' -T fields -e http.file_data",
     ],
     tools=["Wireshark", "tshark"],
+    vulnerability="Cleartext credentials sniffed from HTTP",
+    wiki="https://en.wikipedia.org/wiki/Sniffing_attack",
     learned=("You recovered a password because HTTP sent the login form as readable "
              "text. A packet capture records those bytes exactly; anyone able to observe "
              "the network path could read the credentials."),

@@ -64,6 +64,8 @@ register(WebXss(
         "Search for:  <script>alert(1)</script>",
     ],
     tools=["Firefox", "curl"],
+    vulnerability="Reflected cross-site scripting (XSS)",
+    wiki="https://en.wikipedia.org/wiki/Cross-site_scripting#Non-persistent_(reflected)",
     learned=("The page put your search term into its HTML without escaping it, so the "
              "browser couldn't tell your markup from the site's own. Your <script> ran as "
              "part of the Northwind site. It's called reflected XSS because the payload "

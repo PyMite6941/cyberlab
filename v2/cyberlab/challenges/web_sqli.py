@@ -45,6 +45,8 @@ register(WebSqli(
         "In SQL, -- starts a comment. Try the username  admin' --  with any password.",
     ],
     tools=["Firefox", "curl", "sqlmap"],
+    vulnerability="SQL injection",
+    wiki="https://en.wikipedia.org/wiki/SQL_injection",
     learned=("The login built its SQL by pasting your input between quotes. Your own quote "
              "closed the string, so the rest of what you typed ran as SQL: the query became "
              "WHERE username = 'admin' --' AND password = '...', and everything after -- "

@@ -51,6 +51,8 @@ register(WebSession(
         "Set the header algorithm to none, change role to admin, and leave the signature empty.",
     ],
     tools=["curl", "Python"],
+    vulnerability="Unverified JWT signature (forged session claims)",
+    wiki="https://en.wikipedia.org/wiki/JSON_Web_Token",
     learned=("You changed the role claim in a JWT and the vulnerable endpoint treated it "
              "as an administrator session because it never verified the signature."),
     real_world=("If an application trusts unsigned or incorrectly verified session claims, "

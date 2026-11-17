@@ -74,6 +74,8 @@ register(WebLogForensics(
         f"and line as IP:{EVIDENCE_LINE}.",
     ],
     tools=["grep", "awk", "sed"],
+    vulnerability="Directory (path) traversal",
+    wiki="https://en.wikipedia.org/wiki/Path_traversal_attack",
     learned=("You used a specific access-log entry as evidence: line 7 contains an "
              "encoded traversal sequence targeting a sensitive system path. The source IP "
              "and request line together support the finding; a 400 response shows this "

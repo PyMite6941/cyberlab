@@ -4,6 +4,7 @@
     cyberlab start <id>             set up a challenge and show its goal
     cyberlab submit <id> <answer>   check an answer
     cyberlab learn <id>             review the lesson, real-world impact and defenses
+    cyberlab learn                  HTML page of everything you've solved
     cyberlab hint <id>              next hint for a challenge
     cyberlab stop                   stop every running target
     cyberlab report [-o FILE]       progress summary to hand in
@@ -17,15 +18,18 @@ import difflib
 import shutil
 import sys
 import textwrap
+import webbrowser
 from typing import List, Optional
 
-from cyberlab import __version__, report, targets
+from cyberlab import __version__, learnpage, report, targets
 from cyberlab.challenges import REGISTRY, Challenge, ordered
 from cyberlab.workspace import Workspace
 
 
-def _wrap(text: str, indent: str = "  ") -> str:
-    return textwrap.fill(text, width=78, initial_indent=indent, subsequent_indent=indent)
+def _wrap(text: str, indent: str = "  ", rest: Optional[str] = None) -> str:
+    """Wrap to 78 columns. `rest` indents the continuation lines (default: `indent`)."""
+    return textwrap.fill(text, width=78, initial_indent=indent,
+                         subsequent_indent=indent if rest is None else rest)
 
 
 def _find(challenge_id: str) -> Optional[Challenge]:
@@ -40,6 +44,7 @@ def _find(challenge_id: str) -> Optional[Challenge]:
 
 
 def _print_debrief(ws: Workspace, challenge: Challenge) -> None:
+    print(f"\nThe vulnerability\n  {challenge.vulnerability}\n  Read more: {challenge.wiki}")
     print(f"\nWhat you learned\n{_wrap(challenge.learned)}")
     print(f"\nWhy it matters in practice\n{_wrap(challenge.real_world)}")
 
@@ -60,16 +65,17 @@ def _print_debrief(ws: Workspace, challenge: Challenge) -> None:
     if challenge.defend:
         print("\nHow to defend")
         for advice in challenge.defend:
-            print(_wrap(advice, indent="  - "))
+            print(_wrap(advice, indent="  - ", rest="    "))
 
 
 def cmd_list(ws: Workspace, args: argparse.Namespace) -> int:
     challenges = ordered()
     solved = sum(ws.is_solved(c.id) for c in challenges)
-    print(f"{'':4}{'ID':<13} {'TRACK':<9} {'LEVEL':<8} TITLE")
+    w = max(len(c.id) for c in challenges)
+    print(f"{'':4}{'ID':<{w}} {'TRACK':<9} {'LEVEL':<8} TITLE")
     for c in challenges:
         mark = "x" if ws.is_solved(c.id) else " "
-        print(f"[{mark}] {c.id:<13} {c.track:<9} {c.difficulty:<8} {c.title}")
+        print(f"[{mark}] {c.id:<{w}} {c.track:<9} {c.difficulty:<8} {c.title}")
     print(f"\n{solved}/{len(challenges)} solved. Start one with: cyberlab start <id>")
     running = [name for name in list(ws.state["targets"]) if targets.running(ws, name)]
     if running:
@@ -109,12 +115,25 @@ def cmd_submit(ws: Workspace, args: argparse.Namespace) -> int:
         solved = sum(ws.is_solved(x.id) for x in REGISTRY.values())
         print(f"Correct! {c.id} solved. ({solved}/{len(REGISTRY)} solved)")
         _print_debrief(ws, c)
+        page = learnpage.write(ws)
+        print(f"\nAdded to your learning page: {page}  (open it with: cyberlab learn)")
         return 0
     print(f"Not quite. Keep going, or try: cyberlab hint {c.id}")
     return 1
 
 
 def cmd_learn(ws: Workspace, args: argparse.Namespace) -> int:
+    if args.id is None:
+        page = learnpage.write(ws)
+        print(f"Learning page: {page}")
+        if not args.no_open:
+            try:
+                opened = webbrowser.open(page.as_uri())
+            except Exception:  # no browser at all (a bare server, say)
+                opened = False
+            if not opened:
+                print("Open that file in Firefox to read it.")
+        return 0
     c = _find(args.id)
     if c is None:
         return 2
@@ -190,8 +209,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("answer", nargs="+")
     p.set_defaults(func=cmd_submit)
-    p = sub.add_parser("learn", help="review a challenge's lesson, commands and defenses")
-    p.add_argument("id")
+    p = sub.add_parser("learn", help="review a challenge's lesson; no id: HTML page of all you've solved")
+    p.add_argument("id", nargs="?")
+    p.add_argument("--no-open", action="store_true", help="write the page but don't open a browser")
     p.set_defaults(func=cmd_learn)
     p = sub.add_parser("hint", help="next hint for a challenge")
     p.add_argument("id")

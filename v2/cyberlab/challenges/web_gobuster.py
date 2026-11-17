@@ -72,6 +72,8 @@ register(WebGobuster(
         "curl. It lists a file; the flag is inside that file.",
     ],
     tools=["gobuster", "curl", "Firefox"],
+    vulnerability="Hidden but unprotected files (security through obscurity)",
+    wiki="https://en.wikipedia.org/wiki/Security_through_obscurity",
     learned=("You found a directory by guessing its name. The server answers 404 for "
              "paths that don't exist and something else for paths that do, so a wordlist "
              "and a loop map out everything on the site, linked or not. The directory held "

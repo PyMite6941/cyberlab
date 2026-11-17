@@ -82,6 +82,8 @@ register(WebUpload(
         "Try avatar.jpg.html with image/jpeg on /upload, then repeat against /secure/upload.",
     ],
     tools=["curl"],
+    vulnerability="Unrestricted file upload leading to stored XSS",
+    wiki="https://en.wikipedia.org/wiki/Cross-site_scripting#Persistent_(or_stored)",
     learned=("You uploaded harmless HTML using a double extension and a spoofed image MIME "
              "type. The vulnerable endpoint made it public and served it inline from the "
              "site's origin."),

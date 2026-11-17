@@ -70,6 +70,8 @@ register(NetNmap(
         "that page.",
     ],
     tools=["nmap", "curl", "nc"],
+    vulnerability="Unneeded exposed services (attack surface)",
+    wiki="https://en.wikipedia.org/wiki/Attack_surface",
     learned=("You asked a hundred ports whether anything was listening, and found two "
              "services the owner had forgotten: an FTP server whose banner gives away its "
              "exact version, and a maintenance console with no login. Running it on an odd "

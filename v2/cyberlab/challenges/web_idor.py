@@ -42,6 +42,8 @@ register(WebIdor(
         "Compare /account?id=100 with /secure/account?id=100 to see the ownership check.",
     ],
     tools=["Firefox", "curl"],
+    vulnerability="Insecure direct object reference (IDOR)",
+    wiki="https://en.wikipedia.org/wiki/Insecure_direct_object_reference",
     learned=("You changed the identifier for an object and the server returned someone "
              "else's record. Authentication tells the application who the requester is; "
              "authorization must separately decide whether that requester may access each "

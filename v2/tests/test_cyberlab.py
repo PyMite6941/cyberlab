@@ -423,11 +423,31 @@ class TestCli(TempHome):
     def test_learn_replays_the_debrief_without_starting_a_target(self):
         result = self.cyberlab("learn", "web-sqli")
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("The vulnerability", result.stdout)
+        self.assertIn("https://en.wikipedia.org/wiki/SQL_injection", result.stdout)
         self.assertIn("What you learned", result.stdout)
         self.assertIn("Why it matters in practice", result.stdout)
         self.assertIn("Try these commands", result.stdout)
         self.assertIn("How to defend", result.stdout)
         self.assertFalse(Workspace(self.home).state["targets"])
+
+    def test_learn_page_shows_solved_challenges_and_hides_unsolved_answers(self):
+        page = self.home / "learn.html"
+        empty = self.cyberlab("learn", "--no-open")
+        self.assertEqual(empty.returncode, 0, empty.stderr)
+        self.assertIn("Nothing solved yet", page.read_text(encoding="utf-8"))
+
+        flag = Workspace(self.home).flag("web-sqli")
+        solved = self.cyberlab("submit", "web-sqli", flag)
+        self.assertEqual(solved.returncode, 0, solved.stdout)
+        self.assertIn("learning page", solved.stdout)
+        text = page.read_text(encoding="utf-8")
+        self.assertIn("Vulnerability:</strong> SQL injection", text)
+        self.assertIn('href="https://en.wikipedia.org/wiki/SQL_injection"', text)
+        self.assertIn("How to defend", text)
+        # Unsolved challenges appear by title only, without the vulnerability name.
+        self.assertIn("web-xss", text)
+        self.assertNotIn(REGISTRY["web-xss"].vulnerability, text)
 
     def test_log_forensics_challenge_accepts_evidence_and_shows_ap_alignment(self):
         started = self.cyberlab("start", "web-log-forensics")
@@ -532,6 +552,8 @@ class TestChallengeDebriefs(TempHome):
         ws = Workspace(self.home)
         for challenge in REGISTRY.values():
             with self.subTest(challenge=challenge.id):
+                self.assertTrue(challenge.vulnerability.strip())
+                self.assertTrue(challenge.wiki.startswith("https://en.wikipedia.org/wiki/"))
                 self.assertTrue(challenge.learned.strip())
                 self.assertTrue(challenge.real_world.strip())
                 self.assertTrue(challenge.defend)

@@ -80,6 +80,8 @@ register(NetDnsTunnel(
         "deadbeef....xabcd123.net  ->  xabcd123.net",
     ],
     tools=["Wireshark", "tshark"],
+    vulnerability="DNS tunneling (data exfiltration over DNS)",
+    wiki="https://en.wikipedia.org/wiki/Tunneling_protocol",
     learned=("You spotted DNS queries carrying long, random-looking labels beneath one "
              "domain. Repeated high-entropy names and unusual record types can indicate "
              "data being encoded into DNS lookups, rather than ordinary name resolution."),

@@ -16,7 +16,7 @@ NAME="cyberlab-class-$CODENAME-$ARCH"
 STAGE="$OUT/$NAME"
 rm -rf "$STAGE" && mkdir -p "$STAGE/cyberlab"
 
-cp -R "$V2/bin" "$V2/cyberlab" "$V2/setup.sh" "$V2/README.md" "$V2/DESIGN.md" "$STAGE/cyberlab/"
+cp -R "$V2/bin" "$V2/cyberlab" "$V2/setup.sh" "$V2/README.md" "$V2/DESIGN.md" "$V2/docs" "$STAGE/cyberlab/"
 find "$STAGE/cyberlab" -name __pycache__ -type d -prune -exec rm -rf {} +
 cp -R "$TOOLS" "$STAGE/tools"
 cp "$HERE/install.sh" "$HERE/README.txt" "$STAGE/"

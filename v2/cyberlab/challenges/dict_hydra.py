@@ -87,6 +87,8 @@ register(DictHydra(
         "start output: cyberlab start dict-hydra",
     ],
     tools=["hydra", "curl"],
+    vulnerability="Online dictionary attack on a login with no rate limiting",
+    wiki="https://en.wikipedia.org/wiki/Dictionary_attack",
     learned=("You guessed a password against a live login, hundreds of times in a few "
              "seconds, and the login never objected. Nothing was exploited: the form did its "
              "job every time. The weaknesses were a password common enough to be in a list "

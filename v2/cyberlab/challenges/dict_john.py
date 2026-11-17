@@ -101,6 +101,8 @@ register(DictJohn(
         "says 'No password hashes left to crack', it already cracked them: --show prints them.",
     ],
     tools=["john"],
+    vulnerability="Weak passwords stored as fast, unsalted hashes",
+    wiki="https://en.wikipedia.org/wiki/Password_cracking",
     learned=("A hash can't be turned back into a password, but nothing stops you hashing "
              "guesses and comparing. John hashed 400 candidate passwords and matched three of "
              "them in well under a second. The passwords fell because they were guessable, "

@@ -33,6 +33,7 @@ cyberlab start web-sqli            # starts the target and shows the goal
 cyberlab hint web-sqli             # one more hint each time
 cyberlab submit web-sqli FLAG{...} # check your answer
 cyberlab learn web-sqli             # review the lesson, commands and defenses
+cyberlab learn                     # HTML page of everything you've solved
 cyberlab stop                      # stop every running target
 cyberlab report --name "Your Name" -o ~/Desktop/report.txt   # progress to hand in
 cyberlab reset                     # delete your workspace and progress
@@ -40,8 +41,11 @@ cyberlab reset                     # delete your workspace and progress
 
 Example: `cyberlab start web-sqli` prints a URL like `http://127.0.0.1:8080/login`.
 Open it in Firefox, or use curl or sqlmap, find the flag, and submit it.
-After a correct answer, cyberlab explains what happened, why it matters in
-practice, gives lab-scoped commands to try, and lists defenses. Run
+After a correct answer, cyberlab names the vulnerability (with a link to its
+Wikipedia article), explains what happened and why it matters in practice,
+gives lab-scoped commands to try, and lists defenses. It also adds the
+challenge to your learning page, `~/cyberlab/learn.html`; `cyberlab learn`
+opens it. Unsolved challenges appear there by title only. Run
 `cyberlab learn <id>` any time to review that debrief. Start the challenge
 first if its target or workspace files are not currently available.
 
@@ -90,6 +94,13 @@ More are coming: see [DESIGN.md](DESIGN.md).
 
 ## For the teacher
 
+- **Slides:** [`docs/slides.html`](docs/slides.html) walks a class through
+  downloading the release, installing, the start/submit/learn loop, and each
+  tool. Open it in a browser; arrow keys move between slides, `F` goes fullscreen.
+  The same deck as PowerPoint is [`docs/cyberlab-slides.pptx`](docs/cyberlab-slides.pptx)
+  (opens in PowerPoint, Keynote, Google Slides or LibreOffice). Every slide has
+  speaker notes with talking points and common fixes, and the last slides are a
+  presenter reference: troubleshooting and each challenge's answer format.
 - **Collecting progress:** students run
   `cyberlab report --name "Their Name" -o ~/Desktop/report.txt` and hand in the
   file. It lists every challenge, when it was solved, and how many hints it took.

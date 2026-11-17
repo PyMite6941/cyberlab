@@ -38,6 +38,7 @@ _SHELL = """<!doctype html>
            margin-top: 2rem; }}
  .lesson h2 {{ font-size: 1.1rem; }} .lesson h3 {{ font-size: 1rem; margin-bottom: .2rem; }}
  .lesson ul {{ padding-left: 1.25rem; }}
+ .vuln {{ background: #fff8e1; border: 1px solid #ffd54f; padding: .4rem .6rem; }}
 </style></head>
 <body><header><a href="/">{site}</a></header>
 <h1>{title}</h1>
@@ -56,14 +57,26 @@ def flag_box(flag: str) -> str:
     return f'<p class="flag">{html.escape(flag)}</p>'
 
 
+def vuln_line(vulnerability: str, wiki: str) -> str:
+    """'Vulnerability: <name> (Wikipedia)' with the article linked. The link
+    needs internet; everything else in the lab works offline."""
+    link = (f' <a href="{html.escape(wiki)}" target="_blank" rel="noopener">'
+            "Read about it on Wikipedia</a>") if wiki else ""
+    return (f'<p class="vuln"><strong>Vulnerability:</strong> '
+            f"{html.escape(vulnerability)}.{link}</p>")
+
+
 def lesson(heading: str, paragraphs: Iterable[str],
            snippets: Sequence[Tuple[str, str]] = (), submit: str = "", code: str = "",
            real_world: str = "", defend: Iterable[str] = (), ap_unit: str = "",
-           ap_topic: str = "", ap_skill: Iterable[str] = ()) -> str:
+           ap_topic: str = "", ap_skill: Iterable[str] = (), vulnerability: str = "",
+           wiki: str = "") -> str:
     """The "what just happened" box. Everything is escaped here, so callers
     pass plain text (including whatever the student typed). `code` is shown
     as a block right after the first paragraph (the query that ran, say)."""
     out = ['<section class="lesson">', f"<h2>{html.escape(heading)}</h2>"]
+    if vulnerability:
+        out.append(vuln_line(vulnerability, wiki))
     for i, paragraph in enumerate(paragraphs):
         out.append(f"<p>{html.escape(paragraph)}</p>")
         if i == 0 and code:
@@ -99,7 +112,8 @@ def challenge_lesson(challenge_id: str, heading: str, paragraphs: Iterable[str],
         heading, paragraphs, snippets, submit, code,
         real_world=challenge.real_world, defend=challenge.defend,
         ap_unit=challenge.ap_unit, ap_topic=challenge.ap_topic,
-        ap_skill=challenge.ap_skill,
+        ap_skill=challenge.ap_skill, vulnerability=challenge.vulnerability,
+        wiki=challenge.wiki,
     )
 
 
