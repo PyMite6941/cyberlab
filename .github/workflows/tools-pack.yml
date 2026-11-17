@@ -14,7 +14,6 @@ on:
       - "v2/cyberlab/**"
       - "v2/README.md"
       - "v2/DESIGN.md"
-      - "v2/docs/**"
       - "v2/setup.sh"
       - "v2/tools-pack/**"
       - "v2/bundle/**"

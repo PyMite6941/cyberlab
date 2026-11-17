@@ -94,13 +94,6 @@ More are coming: see [DESIGN.md](DESIGN.md).
 
 ## For the teacher
 
-- **Slides:** [`docs/slides.html`](docs/slides.html) walks a class through
-  downloading the release, installing, the start/submit/learn loop, and each
-  tool. Open it in a browser; arrow keys move between slides, `F` goes fullscreen.
-  The same deck as PowerPoint is [`docs/cyberlab-slides.pptx`](docs/cyberlab-slides.pptx)
-  (opens in PowerPoint, Keynote, Google Slides or LibreOffice). Every slide has
-  speaker notes with talking points and common fixes, and the last slides are a
-  presenter reference: troubleshooting and each challenge's answer format.
 - **Collecting progress:** students run
   `cyberlab report --name "Their Name" -o ~/Desktop/report.txt` and hand in the
   file. It lists every challenge, when it was solved, and how many hints it took.

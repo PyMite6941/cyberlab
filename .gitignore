@@ -57,3 +57,6 @@ v2/bundle/out/
 # unpacked staging directory is just its contents
 dist/*.tar.gz
 dist/*/
+
+# Teacher slides (HTML + PPTX): kept local, not published
+v2/docs/
